@@ -1,0 +1,130 @@
+//+------------------------------------------------------------------+
+#property strict
+#include <Trade/Trade.mqh>
+
+CTrade trade;
+
+string last_signal = "";
+
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   string signal = ReadSignal();
+
+   if(signal == "")
+      return;
+
+   // 🔥 لا تتجاهل الإشارة إذا لا يوجد صفقة
+   if(signal == last_signal && PositionSelect(_Symbol))
+      return;
+
+   Print("📥 New Signal: ", signal);
+
+   string parts[];
+   int count = StringSplit(signal, ',', parts);
+
+   if(count != 2)
+   {
+      Print("❌ Invalid format");
+      return;
+   }
+
+   string symbol = parts[0];
+   string action = parts[1];
+
+   // 🔥 حل مشكلة الحروف الصغيرة والكبيرة
+   StringToUpper(symbol);
+   StringToUpper(action);
+
+   // 🔥 مقارنة صحيحة للرمز (بدون مشاكل)
+   if(StringFind(_Symbol, symbol) != -1)
+   {
+      Print("✅ Matched Symbol: ", _Symbol);
+
+      if(action == "BUY")
+      {
+         CloseSell();
+         OpenBuy();
+      }
+      else if(action == "SELL")
+      {
+         CloseBuy();
+         OpenSell();
+      }
+
+      last_signal = signal;
+   }
+   else
+   {
+      Print("⛔ Ignore symbol: ", symbol);
+   }
+}
+//+------------------------------------------------------------------+
+
+string ReadSignal()
+{
+   int handle = FileOpen("Signal.txt", FILE_READ | FILE_TXT | FILE_ANSI);
+
+   if(handle == INVALID_HANDLE)
+   {
+      Print("❌ FILE NOT FOUND");
+      return "";
+   }
+
+   string text = FileReadString(handle);
+   FileClose(handle);
+
+   StringTrimLeft(text);
+   StringTrimRight(text);
+
+   Print("📄 FILE: ", text);
+
+   return text;
+}
+//+------------------------------------------------------------------+
+
+void OpenBuy()
+{
+   if(PositionSelect(_Symbol))
+      return;
+
+   Print("🟢 OPEN BUY");
+   trade.Buy(0.10, _Symbol);
+}
+//+------------------------------------------------------------------+
+
+void OpenSell()
+{
+   if(PositionSelect(_Symbol))
+      return;
+
+   Print("🔴 OPEN SELL");
+   trade.Sell(0.10, _Symbol);
+}
+//+------------------------------------------------------------------+
+
+void CloseBuy()
+{
+   if(PositionSelect(_Symbol))
+   {
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+      {
+         Print("❌ CLOSE BUY");
+         trade.PositionClose(_Symbol);
+      }
+   }
+}
+//+------------------------------------------------------------------+
+
+void CloseSell()
+{
+   if(PositionSelect(_Symbol))
+   {
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+      {
+         Print("❌ CLOSE SELL");
+         trade.PositionClose(_Symbol);
+      }
+   }
+}
+//+------------------------------------------------------------------+

@@ -1,0 +1,38 @@
+//@version=5
+strategy("EMA Auto Trader", overlay=true, initial_capital=10000)
+
+// الإعدادات
+fastLength = input.int(20, title="EMA السريع")
+slowLength = input.int(50, title="EMA البطيء")
+
+// حساب المتوسطات
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+
+// رسمها على الشارت
+plot(fastEMA, color=color.green, linewidth=2, title="EMA 20")
+plot(slowEMA, color=color.red, linewidth=2, title="EMA 50")
+
+// إشارات الدخول
+buySignal = ta.crossover(fastEMA, slowEMA)
+sellSignal = ta.crossunder(fastEMA, slowEMA)
+
+// تنفيذ الاستراتيجية
+if buySignal
+    strategy.close("Sell")
+    strategy.entry("Buy", strategy.long)
+
+if sellSignal
+    strategy.close("Buy")
+    strategy.entry("Sell", strategy.short)
+
+// رسم الأسهم
+plotshape(buySignal, title="Buy", location=location.belowbar,
+     style=shape.triangleup, color=color.lime, size=size.small)
+
+plotshape(sellSignal, title="Sell", location=location.abovebar,
+     style=shape.triangledown, color=color.red, size=size.small)
+
+// التنبيهات
+alertcondition(buySignal, title="BUY", message="BUY")
+alertcondition(sellSignal, title="SELL", message="SELL")

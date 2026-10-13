@@ -1,0 +1,117 @@
+import imaplib
+import email
+import time
+from datetime import datetime
+
+# ================= CONFIG =================
+EMAIL = "u24820922@gmail.com"
+PASSWORD = "xvalpupoospxtfid"
+
+FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+IMAP_SERVER = "imap.gmail.com"
+CHECK_INTERVAL = 5
+
+# ================= STATE =================
+#last_signal = ""usd
+last_signal = "usd"
+last_email_id = ""
+waiting_printed = False
+
+# ================= LOG =================
+def log(msg):
+    global waiting_printed
+
+    if "WAITING" in msg:
+        if waiting_printed:
+            return
+        waiting_printed = True
+    else:
+        waiting_printed = False
+
+    t = datetime.now().strftime("%H:%M:%S")
+    print(f"{t} {msg}")
+
+# ================= SIGNAL =================
+def extract_signal(text):
+    text = text.upper()
+
+    if "BUY" in text or "LONG" in text:
+        return "BUY"
+    elif "SELL" in text or "SHORT" in text:
+        return "SELL"
+
+    return ""
+
+# ================= WRITE =================
+def write_signal(signal):
+    try:
+        with open(FILE_PATH, "w") as f:
+            f.write("BTCUSD," + signal)
+
+        log(f"🔥 SIGNAL WRITTEN: {signal}")
+
+    except Exception as e:
+        log(f"❌ WRITE ERROR: {e}")
+
+# ================= CONNECT =================
+mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+mail.login(EMAIL, PASSWORD)
+
+log("🚀 BOT STARTED")
+
+# ================= LOOP =================
+while True:
+    try:
+        mail.select("inbox")
+
+        result, data = mail.search(None, "UNSEEN")
+        ids = data[0].split()
+
+        if ids:
+            latest_id = ids[-1]
+
+            # منع تكرار نفس الإيميل
+            if latest_id == last_email_id:
+                time.sleep(CHECK_INTERVAL)
+                continue
+
+            last_email_id = latest_id
+
+            result, msg_data = mail.fetch(latest_id, "(RFC822)")
+            raw_email = msg_data[0][1]
+
+            msg = email.message_from_bytes(raw_email)
+
+            subject = msg["subject"] if msg["subject"] else ""
+            body = ""
+
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode(errors="ignore")
+                        break
+            else:
+                body = msg.get_payload(decode=True).decode(errors="ignore")
+
+            full_text = (subject + " " + body).upper()
+
+            signal = extract_signal(full_text)
+
+            if signal != "":
+                log(f"📨 EMAIL RECEIVED → {signal}")
+
+                if signal != last_signal:
+                    write_signal(signal)
+                    last_signal = signal
+                else:
+                    log("⚠️ SAME SIGNAL IGNORED")
+
+        else:
+            log("⏳ WAITING FOR EMAIL...")
+
+        time.sleep(CHECK_INTERVAL)
+
+    except Exception as e:
+        log(f"❌ ERROR: {e}")
+        time.sleep(CHECK_INTERVAL)

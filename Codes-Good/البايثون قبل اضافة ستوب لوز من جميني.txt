@@ -1,0 +1,60 @@
+from flask import Flask, request
+
+app = Flask(__name__)
+
+FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+SYMBOL = "BTCUSD"  # 👈 ثابت
+
+# متغير لتخزين آخر إشارة تم تنفيذها لمنع التكرار
+last_signal = None 
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    global last_signal
+    try:
+        # 🔥 قراءة كل أنواع البيانات
+        if request.data:
+            raw = request.data.decode('utf-8')
+        elif request.form:
+            raw = str(request.form)
+        elif request.json:
+            raw = str(request.json)
+        else:
+            raw = ""
+
+        raw = raw.upper()
+
+        print("==============================")
+        print("📩 RAW:", raw)
+
+        # 🔥 استخراج BUY / SELL فقط
+        if "BUY" in raw:
+            action = "BUY"
+        elif "SELL" in raw:
+            action = "SELL"
+        else:
+            print("❌ NO SIGNAL FOUND")
+            return "OK"
+
+        # 🛑 فلتر منع تكرار الإشارات المتشابهة متتالية
+        if action == last_signal:
+            print(f"⚠️ IGNORED: {action} signal already active. Skipping file write.")
+            return "OK"
+
+        # 🔥 كتابة إشارة نظيفة ومختلفة
+        final_signal = f"{SYMBOL},{action}"
+
+        with open(FILE_PATH, "w") as f:
+            f.write(final_signal)
+
+        # تحديث آخر إشارة تم إرسالها
+        last_signal = action
+        print("🔥 FINAL (WRITTEN TO FILE):", final_signal)
+
+    except Exception as e:
+        print("❌ ERROR:", e)
+
+    return "OK"
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5000)

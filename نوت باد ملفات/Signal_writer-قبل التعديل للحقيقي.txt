@@ -1,0 +1,63 @@
+from flask import Flask, request
+import json
+
+app = Flask(__name__)
+
+FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+SYMBOL = "BTCUSD"
+
+last_signal = None 
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    global last_signal
+    try:
+        # 1. قراءة البيانات المباشرة
+        data = request.get_json(silent=True) or {}
+        
+        if not data and request.data:
+            try:
+                data = json.loads(request.data.decode('utf-8'))
+            except:
+                pass
+
+        action = data.get("action", "").upper()
+        
+        # 2. خطة بديلة في حال كان الإرسال نصاً عادياً وليس JSON
+        if not action:
+            raw = request.data.decode('utf-8').upper() if request.data else ""
+            if "BUY" in raw: 
+                action = "BUY"
+            elif "SELL" in raw: 
+                action = "SELL"
+
+        if action not in ["BUY", "SELL"]:
+            print("❌ NO VALID SIGNAL FOUND")
+            return "OK"
+
+        # 3. استخراج الستوب لوز والهدف (0 في حال عدم وجودهما)
+        sl = data.get("sl", 0)
+        tp = data.get("tp", 0)
+
+        # 4. بناء صيغة الإشارة لـ MetaTrader 5
+        final_signal = f"{SYMBOL},{action},{sl},{tp}"
+
+        # 5. التصفية لمنع التكرار المتتالي
+        if final_signal == last_signal:
+            print(f"⚠️ IGNORED: Signal [{final_signal}] already active. Skipping.")
+            return "OK"
+
+        # 6. كتابة الإشارة في الملف النصي
+        with open(FILE_PATH, "w") as f:
+            f.write(final_signal)
+
+        last_signal = final_signal
+        print("🔥 WRITTEN TO FILE:", final_signal)
+
+    except Exception as e:
+        print("❌ ERROR:", e)
+
+    return "OK"
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5000)

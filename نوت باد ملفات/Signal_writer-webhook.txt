@@ -1,0 +1,60 @@
+from flask import Flask, request
+import os
+import time
+
+# ================= CONFIG =================
+EMAIL = "u24820922@gmail.com"
+PASSWORD = "xvalpupoospxtfid"
+
+FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+# ========================================
+
+app = Flask(__name__)
+
+last_signal = ""
+last_time = 0
+
+def write_signal(symbol, signal):
+    global last_signal, last_time
+
+    current = symbol + "," + signal
+
+    # منع التكرار خلال 2 ثانية فقط
+    if current == last_signal and (time.time() - last_time) < 2:
+        print("⚠️ Duplicate ignored")
+        return
+
+    with open(FILE_PATH, "w") as f:
+        f.write(current)
+
+    print("🔥 SIGNAL WRITTEN:", current)
+
+    last_signal = current
+    last_time = time.time()
+
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    try:
+        data = request.json
+
+        print("📩 Webhook received:", data)
+
+        symbol = data.get("symbol", "").upper()
+        action = data.get("action", "").upper()
+
+        if action in ["BUY", "SELL"]:
+            write_signal(symbol, action)
+            return "OK", 200
+        else:
+            return "Invalid signal", 400
+
+    except Exception as e:
+        print("❌ ERROR:", e)
+        return "ERROR", 500
+
+
+if __name__ == "__main__":
+    print("🚀 WEBHOOK SERVER STARTED")
+    app.run(host="0.0.0.0", port=5000)

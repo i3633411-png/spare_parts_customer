@@ -1,0 +1,94 @@
+//+------------------------------------------------------------------+
+#property strict
+
+string last_signal = "";
+
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   string signal = ReadSignal();
+
+   //  Ã«Â· ≈–« „«›Ì ≈‘«—… √Ê ‰›” «·≈‘«—… «·”«»ﬁ…
+   if(signal == "" || signal == last_signal)
+      return;
+
+   Print("?? New Signal: ", signal);
+
+   // BUY
+   if(signal == "BUY")
+   {
+      CloseSell();
+      OpenBuy();
+   }
+
+   // SELL
+   else if(signal == "SELL")
+   {
+      CloseBuy();
+      OpenSell();
+   }
+
+   last_signal = signal;
+}
+//+------------------------------------------------------------------+
+
+string ReadSignal()
+{
+   int handle = FileOpen("Signal.txt", FILE_READ | FILE_TXT | FILE_ANSI);
+
+   if(handle == INVALID_HANDLE)
+   {
+      Print("? File not found");
+      return "";
+   }
+
+   string text = FileReadString(handle);
+   FileClose(handle);
+
+   StringTrimLeft(text);
+   StringTrimRight(text);
+
+   return text;
+}
+//+------------------------------------------------------------------+
+
+void OpenBuy()
+{
+   if(PositionSelect(_Symbol))
+      return;
+
+   trade.Buy(0.10, _Symbol);
+}
+//+------------------------------------------------------------------+
+
+void OpenSell()
+{
+   if(PositionSelect(_Symbol))
+      return;
+
+   trade.Sell(0.10, _Symbol);
+}
+//+------------------------------------------------------------------+
+
+void CloseBuy()
+{
+   if(PositionSelect(_Symbol))
+   {
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+         trade.PositionClose(_Symbol);
+   }
+}
+//+------------------------------------------------------------------+
+
+void CloseSell()
+{
+   if(PositionSelect(_Symbol))
+   {
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+         trade.PositionClose(_Symbol);
+   }
+}
+//+------------------------------------------------------------------+
+
+#include <Trade/Trade.mqh>
+CTrade trade;

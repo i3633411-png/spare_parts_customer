@@ -1,0 +1,90 @@
+#property strict
+#include <Trade/Trade.mqh>
+
+CTrade trade;
+
+string last_signal = "";
+
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   string signal = ReadSignal();
+
+   if(signal == "")
+      return;
+
+   string parts[];
+   int count = StringSplit(signal, ',', parts);
+
+   if(count != 2)
+      return;
+
+   string symbol = parts[0];
+   string action = parts[1];
+
+   if(StringFind(_Symbol, symbol) == -1)
+      return;
+
+   bool hasPosition = PositionSelect(_Symbol);
+
+   int currentType = -1;
+
+   if(hasPosition)
+      currentType = PositionGetInteger(POSITION_TYPE);
+
+   // ================= BUY =================
+   if(action == "BUY")
+   {
+      // إذا فيه SELL → اقفله
+      if(hasPosition && currentType == POSITION_TYPE_SELL)
+      {
+         Print("❌ CLOSE SELL → BUY signal");
+         trade.PositionClose(_Symbol);
+         return;
+      }
+
+      // إذا ما فيه صفقة → افتح BUY
+      if(!hasPosition)
+      {
+         Print("🟢 OPEN BUY");
+         trade.Buy(0.10, _Symbol);
+         return;
+      }
+   }
+
+   // ================= SELL =================
+   if(action == "SELL")
+   {
+      // إذا فيه BUY → اقفله فقط
+      if(hasPosition && currentType == POSITION_TYPE_BUY)
+      {
+         Print("❌ CLOSE BUY (NO REVERSE)");
+         trade.PositionClose(_Symbol);
+         return;
+      }
+
+      // 🚫 لا تفتح SELL
+   }
+
+   last_signal = signal;
+}
+//+------------------------------------------------------------------+
+
+string ReadSignal()
+{
+   int handle = FileOpen("Signal.txt", FILE_READ | FILE_TXT | FILE_ANSI);
+
+   if(handle == INVALID_HANDLE)
+   {
+      Print("❌ FILE NOT FOUND");
+      return "";
+   }
+
+   string text = FileReadString(handle);
+   FileClose(handle);
+
+   StringTrimLeft(text);
+   StringTrimRight(text);
+
+   return text;
+}

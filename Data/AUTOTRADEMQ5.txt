@@ -1,0 +1,58 @@
+//+------------------------------------------------------------------+
+//|                                                  AutoTraderEA.mqs |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2026"
+#property version   "1.00"
+
+#include <Trade/Trade.mqh>
+
+CTrade trade;
+
+string SignalText = "";
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   Print("AutoTraderEA Started Successfully");
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   Comment("");
+}
+//====================================================
+// قراءة ملف الإشارة
+//====================================================
+string ReadSignal()
+{
+   string signal = "";
+
+   int file = FileOpen("signal.txt", FILE_READ | FILE_TXT);
+
+   if(file != INVALID_HANDLE)
+   {
+      signal = FileReadString(file);
+      FileClose(file);
+   }
+
+   return(signal);
+}
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   SignalText = ReadSignal();
+
+   Comment(
+      "AutoTraderEA\n\n",
+      "Signal = ", SignalText
+   );
+}
+BUY

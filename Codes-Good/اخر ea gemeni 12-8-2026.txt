@@ -1,0 +1,94 @@
+//+------------------------------------------------------------------+
+//|                                                 AutoTraderEA.mq5 |
+//|                                Basic MQL5 Webhook Signal Receiver|
+//+------------------------------------------------------------------+
+#property copyright "AI Trading Bot"
+#property version   "1.50"
+#property strict
+
+#include <Trade\Trade.mqh>
+CTrade trade;
+
+// --- مدخلات البوت المتغيرة ---
+input double   InpLotSize        = 0.03;         // حجم اللوت (Lot Size)
+input double   InpTakeProfitUSD  = 10.0;          // هدف الربح بالدولار (إغلاق الصفقة عند تحققه)
+input double   InpStopLossUSD    = 3.0;          // أقصى وقف خسارة بالدولار (إغلاق الصفقة عند الوصول إليه)
+input string   InpSignalFileName = "Signal.txt"; // اسم ملف الإشارات
+
+string last_signal = "";
+
+int OnInit() {
+   trade.SetTypeFilling(ORDER_FILLING_IOC);
+   Print("🚀 البوت يعمل. هدف الربح: ", InpTakeProfitUSD, " $ | وقف الخسارة: ", InpStopLossUSD, " $");
+   return(INIT_SUCCEEDED);
+}
+
+void OnTick() {
+   // 1. فحص الأرباح والخسائر الحالية وإغلاق الصفقة عند وصولها للحدود المحددة
+   CheckProfitAndLoss();
+
+   // 2. قراءة الملف واستقبال الإشارات الجديدة
+   string current_signal = ReadSignalFile();
+   if(current_signal != "" && current_signal != last_signal) {
+      last_signal = current_signal;
+      ProcessSignal(current_signal);
+   }
+}
+
+// --- دالة مراقبة الربح والفيء بالدولار وإغلاق الصفقات تلقائياً ---
+void CheckProfitAndLoss() {
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol) {
+         double current_profit = PositionGetDouble(POSITION_PROFIT);
+         
+         // إغلاق الصفقة عند تحقيق هدف الربح بالدولار
+         if(InpTakeProfitUSD > 0 && current_profit >= InpTakeProfitUSD) {
+            trade.PositionClose(ticket);
+            Print("💰 تم إغلاق الصفقة بنجاح لجني الربح بالدولار: ", current_profit, " $");
+         }
+         
+         // إغلاق الصفقة عند الوصول للحد الأقصى لوقف الخسارة بالدولار
+         if(InpStopLossUSD > 0 && current_profit <= -InpStopLossUSD) {
+            trade.PositionClose(ticket);
+            Print("🛑 تم إغلاق الصفقة تلقائياً لحماية الحساب عند وقف الخسارة: ", current_profit, " $");
+         }
+      }
+   }
+}
+
+string ReadSignalFile() {
+   string result = "";
+   int file_handle = FileOpen(InpSignalFileName, FILE_READ|FILE_SHARE_READ|FILE_TXT|FILE_ANSI);
+   if(file_handle != INVALID_HANDLE) {
+      result = FileReadString(file_handle);
+      FileClose(file_handle);
+   }
+   StringTrimLeft(result);
+   StringTrimRight(result);
+   return(result);
+}
+
+void ProcessSignal(string signal) {
+   Print("📥 إشارة مقروءة: ", signal);
+   
+   if(StringFind(signal, "BUY") != -1) {
+      double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      if(trade.Buy(InpLotSize, _Symbol, ask, 0, 0, "Webhook Buy")) Print("✅ شراء ناجح");
+   }
+   else if(StringFind(signal, "SELL") != -1) {
+      double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      if(trade.Sell(InpLotSize, _Symbol, bid, 0, 0, "Webhook Sell")) Print("✅ بيع ناجح");
+   }
+   else if(StringFind(signal, "CLOSE") != -1) {
+      CloseAllPositions();
+   }
+}
+
+void CloseAllPositions() {
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol) trade.PositionClose(ticket);
+   }
+   Print("🧹 تم إغلاق الصفقات");
+}

@@ -1,0 +1,123 @@
+//+------------------------------------------------------------------+
+//|                                                AutoTraderEA.mq5  |
+//|                                  Copyright 2026, Fast Stoch Pro  |
+//+------------------------------------------------------------------+
+#property copyright "Fast Stoch Pro"
+#property link      ""
+#property version   "1.10"
+
+#include <Trade\Trade.mqh>
+CTrade trade;
+
+// مدخلات التحكم
+input double   InpLotSize       = 0.01;      // حجم اللوت
+input int      InpTakeProfit    = 4000;      // التيك بروفيت (بالنقاط) - 0 للإلغاء
+input int      InpTimerInterval = 1;         // زمن فحص الملف (بالثواني)
+
+string fileName = "signal.txt";
+
+int OnInit()
+{
+   EventSetTimer(InpTimerInterval);
+   Print("EA Initialized successfully. Ready for signals...");
+   return(INIT_SUCCEEDED);
+}
+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+   Print("EA Stopped.");
+}
+
+void OnTick()
+{
+}
+
+void OnTimer()
+{
+   if(FileIsExist(fileName))
+   {
+      int fileHandle = FileOpen(fileName, FILE_READ|FILE_TXT|FILE_ANSI);
+      if(fileHandle != INVALID_HANDLE)
+      {
+         string fileContent = FileReadString(fileHandle);
+         FileClose(fileHandle);
+         
+         FileDelete(fileName);
+         
+         Print("Raw Signal Received: ", fileContent);
+         ProcessSignal(fileContent);
+      }
+   }
+}
+
+void ProcessSignal(string signalData)
+{
+   StringTrimLeft(signalData);
+   StringTrimRight(signalData);
+   
+   if(StringLen(signalData) == 0) return;
+   
+   string result[];
+   int k = StringSplit(signalData, ',', result);
+   
+   if(k >= 2)
+   {
+      string symbol = result[0];
+      string action = result[1];
+      
+      StringTrimLeft(symbol);  StringTrimRight(symbol);
+      StringTrimLeft(action);  StringTrimRight(action);
+      StringToUpper(action);
+      
+      double price = 0;
+      double tp = 0;
+      
+      // 1. فتح صفقة شراء جديدة
+      if(action == "BUY")
+      {
+         price = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(InpTakeProfit > 0) tp = price + (InpTakeProfit * _Point);
+         
+         Print("Sending BUY Order for ", _Symbol, " at ", price);
+         // تم وضع الـ Stop Loss بقيمة 0 كلياً
+         if(!trade.Buy(InpLotSize, _Symbol, price, 0, tp, "TradingView Buy"))
+         {
+            Print("Error opening BUY: ", trade.ResultRetcode(), " - ", trade.ResultRetcodeDescription());
+         }
+      }
+      // 2. إغلاق الصفقات المفتوحة عند استقبال إشارة SELL / Exit
+      else if(action == "SELL" || action == "CLOSE")
+      {
+         Print("Closing all open positions for ", _Symbol);
+         CloseAllPositions();
+      }
+      else
+      {
+         Print("Unknown Action parsed: '", action, "'");
+      }
+   }
+   else
+   {
+      Print("Invalid signal format. Split count: ", k);
+   }
+}
+
+//+------------------------------------------------------------------+
+//| دالة إغلاق كافة الصفقات المفتوحة للرمز الحالي                     |
+//+------------------------------------------------------------------+
+void CloseAllPositions()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0)
+      {
+         if(PositionGetString(POSITION_SYMBOL) == _Symbol)
+         {
+            trade.PositionClose(ticket);
+            Print("Closed position Ticket: ", ticket);
+         }
+      }
+   }
+}

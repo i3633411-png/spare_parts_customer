@@ -1,0 +1,66 @@
+//@version=5
+strategy("استراتيجية ستوكاستيك + ترند - BTCUSD (Webhook)", overlay=true,
+     default_qty_type=strategy.fixed, default_qty_value=0.01,
+     initial_capital=10000, currency=currency.USD,
+     process_orders_on_close=true)
+
+// ============ الإعدادات ============
+kLength   = input.int(14, "فترة %K", group="ستوكاستيك")
+kSmooth   = input.int(3,  "تنعيم %K", group="ستوكاستيك")
+dSmooth   = input.int(3,  "تنعيم %D", group="ستوكاستيك")
+overbought = input.int(80, "مستوى التشبع الشرائي", group="ستوكاستيك")
+oversold   = input.int(20, "مستوى التشبع البيعي", group="ستوكاستيك")
+
+trendLen = input.int(200, "فترة المتوسط المتحرك (فلتر الترند)", group="الترند")
+
+qty = input.float(0.01, "حجم الصفقة (BTC) - للباك تست فقط", minval=0.0001, step=0.001, group="إدارة الصفقة")
+tpDollars = input.float(10.0, "جني الأرباح (دولار) - للباك تست فقط", group="إدارة الصفقة")
+slDollars = input.float(3.0,  "وقف الخسارة (دولار) - للباك تست فقط", group="إدارة الصفقة")
+
+// اسم الرمز كما يظهر في MT5 (وليس اسمه في TradingView)
+mt5Symbol = input.string("BTCUSDm", "اسم الرمز في MT5 (للإرسال عبر Webhook)", group="ربط MT5")
+
+// ============ الحسابات ============
+k = ta.sma(ta.stoch(close, high, low, kLength), kSmooth)
+d = ta.sma(k, dSmooth)
+
+trendMA = ta.ema(close, trendLen)
+isUptrend   = close > trendMA
+isDowntrend = close < trendMA
+
+buySignal  = ta.crossover(k, d)  and k < oversold   and isUptrend
+sellSignal = ta.crossunder(k, d) and k > overbought and isDowntrend
+
+// ============ تنفيذ الصفقات (للباك تست وعرض الأداء التاريخي فقط) ============
+if buySignal and strategy.position_size <= 0
+    strategy.entry("Long", strategy.long, qty=qty)
+    // إرسال إشارة حقيقية عبر Webhook -> Flask -> Signal.txt -> EA
+    alert('{"symbol":"' + mt5Symbol + '","action":"BUY"}', alert.freq_once_per_bar_close)
+
+if sellSignal and strategy.position_size >= 0
+    strategy.entry("Short", strategy.short, qty=qty)
+    alert('{"symbol":"' + mt5Symbol + '","action":"SELL"}', alert.freq_once_per_bar_close)
+
+if strategy.position_size > 0 and not isUptrend
+    strategy.close("Long", comment="انعكاس الترند")
+if strategy.position_size < 0 and not isDowntrend
+    strategy.close("Short", comment="انعكاس الترند")
+
+if strategy.position_size > 0
+    avgPrice = strategy.position_avg_price
+    strategy.exit("TP/SL Long", from_entry="Long",
+         limit = avgPrice + tpDollars / qty,
+         stop  = avgPrice - slDollars / qty)
+
+if strategy.position_size < 0
+    avgPrice = strategy.position_avg_price
+    strategy.exit("TP/SL Short", from_entry="Short",
+         limit = avgPrice - tpDollars / qty,
+         stop  = avgPrice + slDollars / qty)
+
+// ============ الرسم ============
+plot(trendMA, "خط الترند (EMA)", color=color.orange, linewidth=2)
+plotshape(buySignal,  title="إشارة شراء", location=location.belowbar,
+     style=shape.triangleup, color=color.green, size=size.small)
+plotshape(sellSignal, title="إشارة بيع",  location=location.abovebar,
+     style=shape.triangledown, color=color.red, size=size.small)

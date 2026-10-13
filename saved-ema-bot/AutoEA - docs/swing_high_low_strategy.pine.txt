@@ -1,0 +1,111 @@
+// ============================================================================
+// ÇÓÊÑÇÊíÌíÉ ÇáŞãÉ æÇáŞÇÚ (Swing High/Low Reversal Strategy)
+// ÇáÔÑÇÁ ãä ÇáŞÇÚ - ÇáÈíÚ ãä ÇáŞãÉ
+// ãÚ İáÊÑ ÇÊÌÇå (EMA) æİáÊÑ ÒÎã (RSI) æÅÏÇÑÉ ãÎÇØÑ (ATR)
+// ============================================================================
+//@version=5
+strategy("ÇÓÊÑÇÊíÌíÉ ÇáŞãÉ æÇáŞÇÚ | Swing High-Low Strategy",
+     shorttitle = "Swing H/L Strategy",
+     overlay = true,
+     initial_capital = 10000,
+     default_qty_type = strategy.percent_of_equity,
+     default_qty_value = 10,
+     commission_type = strategy.commission.percent,
+     commission_value = 0.05,
+     slippage = 2)
+
+// ============================== ÇáÅÚÏÇÏÇÊ =================================
+grp1 = "ÅÚÏÇÏÇÊ ÇáŞãÉ æÇáŞÇÚ (Pivot Settings)"
+leftBars  = input.int(5, "ÚÏÏ ÇáÔãæÚ íÓÇÑ äŞØÉ ÇáÇÑÊÏÇÏ", minval = 1, group = grp1)
+rightBars = input.int(5, "ÚÏÏ ÇáÔãæÚ íãíä äŞØÉ ÇáÇÑÊÏÇÏ (ááÊÃßíÏ)", minval = 1, group = grp1)
+
+grp2 = "İáÊÑ ÇáÇÊÌÇå (Trend Filter)"
+useEmaFilter = input.bool(true, "ÊİÚíá İáÊÑ EMA áÊÍÏíÏ ÇáÇÊÌÇå ÇáÚÇã", group = grp2)
+emaLen       = input.int(200, "İÊÑÉ ÇáãÊæÓØ ÇáãÊÍÑß EMA", minval = 10, group = grp2)
+
+grp3 = "İáÊÑ ÇáÒÎã (RSI Filter)"
+useRsiFilter = input.bool(true, "ÊİÚíá İáÊÑ RSI", group = grp3)
+rsiLen       = input.int(14, "İÊÑÉ RSI", group = grp3)
+rsiOversold  = input.int(35, "ãÓÊæì ÇáÊÔÈÚ ÇáÈíÚí (ÔÑÇÁ ÚäÏå)", group = grp3)
+rsiOverbought= input.int(65, "ãÓÊæì ÇáÊÔÈÚ ÇáÔÑÇÆí (ÈíÚ ÚäÏå)", group = grp3)
+
+grp4 = "ÅÏÇÑÉ ÇáãÎÇØÑ (Risk Management)"
+useAtrStops  = input.bool(true, "ÇÓÊÎÏÇã ATR áæŞİ ÇáÎÓÇÑÉ æÌäí ÇáÃÑÈÇÍ", group = grp4)
+atrLen       = input.int(14, "İÊÑÉ ATR", group = grp4)
+atrSlMult    = input.float(1.5, "ãÖÇÚİ æŞİ ÇáÎÓÇÑÉ (ATR x)", minval = 0.1, step = 0.1, group = grp4)
+atrTpMult    = input.float(3.0, "ãÖÇÚİ Ìäí ÇáÃÑÈÇÍ (ATR x)", minval = 0.1, step = 0.1, group = grp4)
+
+grp5 = "İÊÑÉ ÇáÇÎÊÈÇÑ (Backtest Range)"
+startDate = input.time(timestamp("2022-01-01"), "ÊÇÑíÎ ÇáÈÏÇíÉ", group = grp5)
+endDate   = input.time(timestamp("2099-12-31"), "ÊÇÑíÎ ÇáäåÇíÉ", group = grp5)
+inDateRange = time >= startDate and time <= endDate
+
+// ============================== ÇáÍÓÇÈÇÊ ===================================
+emaValue = ta.ema(close, emaLen)
+rsiValue = ta.rsi(close, rsiLen)
+atrValue = ta.atr(atrLen)
+
+// ßÔİ ÇáŞãÉ æÇáŞÇÚ (íÍÊÇÌ ÊÃßíÏ rightBars ÔãÚÉ ÈÚÏ ÇáäŞØÉ)
+pivotHigh = ta.pivothigh(high, leftBars, rightBars)
+pivotLow  = ta.pivotlow(low, leftBars, rightBars)
+
+var float lastPivotHigh = na
+var float lastPivotLow  = na
+
+if not na(pivotHigh)
+    lastPivotHigh := pivotHigh
+if not na(pivotLow)
+    lastPivotLow := pivotLow
+
+// ÔÑæØ ÇáÇÊÌÇå
+bullishTrend = not useEmaFilter or close > emaValue
+bearishTrend = not useEmaFilter or close < emaValue
+
+// ÔÑæØ RSI
+rsiBuyOk  = not useRsiFilter or rsiValue < rsiOversold  or ta.valuewhen(pivotLow, rsiValue, 0) < rsiOversold
+rsiSellOk = not useRsiFilter or rsiValue > rsiOverbought or ta.valuewhen(pivotHigh, rsiValue, 0) > rsiOverbought
+
+// ============================== ÔÑæØ ÇáÏÎæá =================================
+// ÔÑÇÁ: ÚäÏ ÊÃßíÏ ŞÇÚ ÌÏíÏ + ÇáÓÚÑ İæŞ EMA (Ãæ ÇáİáÊÑ ÛíÑ ãİÚá) + RSI ÚäÏ ÊÔÈÚ ÈíÚí
+buySignal  = not na(pivotLow)  and bullishTrend and rsiBuyOk  and inDateRange
+// ÈíÚ: ÚäÏ ÊÃßíÏ ŞãÉ ÌÏíÏÉ + ÇáÓÚÑ ÊÍÊ EMA (Ãæ ÇáİáÊÑ ÛíÑ ãİÚá) + RSI ÚäÏ ÊÔÈÚ ÔÑÇÆí
+sellSignal = not na(pivotHigh) and bearishTrend and rsiSellOk and inDateRange
+
+// ============================== ÊäİíĞ ÇáÕİŞÇÊ ================================
+if buySignal
+    strategy.entry("Long", strategy.long)
+
+if sellSignal
+    strategy.entry("Short", strategy.short)
+
+// æŞİ ÇáÎÓÇÑÉ æÌäí ÇáÃÑÈÇÍ ÈäÇÁğ Úáì ATR
+if useAtrStops
+    longSl  = close - atrValue * atrSlMult
+    longTp  = close + atrValue * atrTpMult
+    shortSl = close + atrValue * atrSlMult
+    shortTp = close - atrValue * atrTpMult
+
+    strategy.exit("Exit Long", "Long", stop = longSl, limit = longTp)
+    strategy.exit("Exit Short", "Short", stop = shortSl, limit = shortTp)
+
+// ============================== ÇáÑÓã Úáì ÇáÔÇÑÊ =============================
+plot(useEmaFilter ? emaValue : na, "EMA", color = color.new(color.blue, 0), linewidth = 2)
+
+plotshape(pivotLow, style = shape.triangleup, location = location.belowbar,
+     color = color.new(color.green, 0), size = size.small, text = "ŞÇÚ",
+     offset = -rightBars)
+
+plotshape(pivotHigh, style = shape.triangledown, location = location.abovebar,
+     color = color.new(color.red, 0), size = size.small, text = "ŞãÉ",
+     offset = -rightBars)
+
+plotshape(buySignal, style = shape.labelup, location = location.belowbar,
+     color = color.new(color.green, 0), text = "ÔÑÇÁ", textcolor = color.white,
+     size = size.tiny)
+
+plotshape(sellSignal, style = shape.labeldown, location = location.abovebar,
+     color = color.new(color.red, 0), text = "ÈíÚ", textcolor = color.white,
+     size = size.tiny)
+
+// ÎáİíÉ ÊæÖÍ ÇáÇÊÌÇå ÇáÚÇã
+bgcolor(useEmaFilter ? (bullishTrend ? color.new(color.green, 92) : color.new(color.red, 92)) : na)

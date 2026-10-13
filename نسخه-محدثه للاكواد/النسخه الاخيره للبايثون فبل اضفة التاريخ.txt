@@ -1,0 +1,116 @@
+
+
+
+# 🔴 مسار الملف
+#file_path = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+# ================== متغيرات ==================
+import imaplib
+import email
+import re
+import time
+from datetime import datetime
+
+# 🔐 بياناتك (عدّلها)
+EMAIL = "u24820922@gmail.com"
+PASSWORD = "xvalpupoospxtfid"
+
+FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+LOG_FILE = "bot_log.txt"
+
+last_signal = ""
+
+# ================== الوقت ==================
+def now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# ================== تسجيل اللوق ==================
+def log(message):
+    full_msg = f"{now()} {message}"
+    print(full_msg)
+
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(full_msg + "\n")
+
+# ================== استخراج الإشارة ==================
+def extract_signal(text):
+    text = text.upper()
+
+    # حذف HTML
+    text = re.sub(r'<[^>]+>', ' ', text)
+
+    if "BUY" in text:
+        action = "BUY"
+    elif "SELL" in text:
+        action = "SELL"
+    else:
+        return None
+
+    symbols = ["BTCUSD", "EURUSD", "GBPUSD", "USDJPY"]
+
+    for sym in symbols:
+        if sym in text:
+            return sym + "," + action
+
+    return None
+
+# ================== كتابة الإشارة ==================
+def write_signal(signal):
+    with open(FILE_PATH, "w", encoding="utf-8") as f:
+        f.write(signal)
+
+    log(f"🔥 NEW SIGNAL: {signal}")
+
+# ================== قراءة الإيميل ==================
+def check_email():
+    global last_signal
+
+    try:
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(EMAIL, PASSWORD)
+        mail.select("inbox")
+
+        result, data = mail.search(None, "ALL")
+        mail_ids = data[0].split()
+
+        if not mail_ids:
+            mail.logout()
+            return
+
+        latest_email_id = mail_ids[-1]
+
+        result, data = mail.fetch(latest_email_id, "(RFC822)")
+        raw_email = data[0][1]
+
+        msg = email.message_from_bytes(raw_email)
+
+        text = ""
+
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == "text/plain":
+                    text = part.get_payload(decode=True).decode(errors="ignore")
+        else:
+            text = msg.get_payload(decode=True).decode(errors="ignore")
+
+        signal = extract_signal(text)
+
+        if signal and signal != last_signal:
+            last_signal = signal
+            write_signal(signal)
+        else:
+            log("📭 No new signal")
+
+        mail.logout()
+
+    except Exception as e:
+        log(f"⚠️ Email Error: {e}")
+
+# ================== تشغيل ==================
+log("🚀 Script started...")
+
+while True:
+    log("📡 Checking email...")
+    check_email()
+    time.sleep(10)

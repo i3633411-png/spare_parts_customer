@@ -1,0 +1,117 @@
+//+------------------------------------------------------------------+
+//|                                                AutoTraderEA.mq5  |
+//|                                  Copyright 2026, Fast Stoch Pro  |
+//+------------------------------------------------------------------+
+#property copyright "Stochastic Zero-to-Fifty Strategy"
+#property link      ""
+#property version   "1.00"
+
+#include <Trade\Trade.mqh>
+CTrade trade;
+
+// مدخلات التحكم
+input double   InpLotSize       = 0.10;      // حجم اللوت
+input int      InpStopLoss      = 4000;      // الستوب لوز (بالنقاط)
+input int      InpTakeProfit    = 8000;      // التيك بروفيت (بالنقاط)
+input int      InpTimerInterval = 1;         // زمن فحص الملف (بالثواني)
+
+string fileName = "signal.txt";
+
+int OnInit()
+{
+   EventSetTimer(InpTimerInterval);
+   Print("EA Initialized successfully. Ready for signals...");
+   return(INIT_SUCCEEDED);
+}
+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+   Print("EA Stopped.");
+}
+
+void OnTick()
+{
+}
+
+void OnTimer()
+{
+   if(FileIsExist(fileName))
+   {
+      // فتح الملف وقراءة النص كـ ANSI لتجنب أحرف 呂哨 الغريبة
+      int fileHandle = FileOpen(fileName, FILE_READ|FILE_TXT|FILE_ANSI);
+      if(fileHandle != INVALID_HANDLE)
+      {
+         string fileContent = FileReadString(fileHandle);
+         FileClose(fileHandle);
+         
+         // حذف الملف فوراً
+         FileDelete(fileName);
+         
+         Print("Raw Signal Received: ", fileContent);
+         ProcessSignal(fileContent);
+      }
+   }
+}
+
+void ProcessSignal(string signalData)
+{
+   // تنظيف النص كلياً من المساحات والأسطر الجديدة
+   StringTrimLeft(signalData);
+   StringTrimRight(signalData);
+   
+   if(StringLen(signalData) == 0) return;
+   
+   string result[];
+   int k = StringSplit(signalData, ',', result);
+   
+   if(k >= 2)
+   {
+      string symbol = result[0];
+      string action = result[1];
+      
+      // تنظيف الرمز والأمر من أي مسافات زائدة
+      StringTrimLeft(symbol);  StringTrimRight(symbol);
+      StringTrimLeft(action);  StringTrimRight(action);
+      
+      // تحويل الأمر إلى أحرف كبيرة لضمان المطابقة
+      StringToUpper(action);
+      
+      double price = 0;
+      double sl = 0;
+      double tp = 0;
+      
+      if(action == "BUY")
+      {
+         price = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(InpStopLoss > 0)   sl = price - (InpStopLoss * _Point);
+         if(InpTakeProfit > 0) tp = price + (InpTakeProfit * _Point);
+         
+         Print("Sending BUY Order for ", _Symbol, " at ", price);
+         if(!trade.Buy(InpLotSize, _Symbol, price, sl, tp, "TradingView Buy"))
+         {
+            Print("Error opening BUY: ", trade.ResultRetcode(), " - ", trade.ResultRetcodeDescription());
+         }
+      }
+      else if(action == "SELL")
+      {
+         price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         if(InpStopLoss > 0)   sl = price + (InpStopLoss * _Point);
+         if(InpTakeProfit > 0) tp = price - (InpTakeProfit * _Point);
+         
+         Print("Sending SELL Order for ", _Symbol, " at ", price);
+         if(!trade.Sell(InpLotSize, _Symbol, price, sl, tp, "TradingView Sell"))
+         {
+            Print("Error opening SELL: ", trade.ResultRetcode(), " - ", trade.ResultRetcodeDescription());
+         }
+      }
+      else
+      {
+         Print("Unknown Action parsed: '", action, "'");
+      }
+   }
+   else
+   {
+      Print("Invalid signal format. Split count: ", k);
+   }
+}

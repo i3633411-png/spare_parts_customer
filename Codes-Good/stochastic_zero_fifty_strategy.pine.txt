@@ -1,0 +1,83 @@
+// ============================================================================
+// ÇÓÊÑÇÊíÌíÉ Stochastic Oscillator
+// ÔÑÇÁ ÚäÏ æÕæá ÇáãÄÔÑ Åáì 0 | Ìäí ÃÑÈÇÍ ÚäÏ æÕæáå Åáì 50 | æŞİ ÎÓÇÑÉ 10% Úáì ÇáÓÚÑ
+// ============================================================================
+//@version=5
+strategy("ÇÓÊÑÇÊíÌíÉ Stochastic | Stoch Zero-to-Fifty Strategy",
+     shorttitle = "Stoch 0-50 Strategy",
+     overlay = false,
+     initial_capital = 10000,
+     default_qty_type = strategy.percent_of_equity,
+     default_qty_value = 10,
+     commission_type = strategy.commission.percent,
+     commission_value = 0.05,
+     slippage = 2)
+
+// ============================== ÇáÅÚÏÇÏÇÊ =================================
+grp1 = "ÅÚÏÇÏÇÊ ãÄÔÑ Stochastic"
+kLen   = input.int(14, "İÊÑÉ %K (Length)", minval = 1, group = grp1)
+kSmooth= input.int(3,  "ÊäÚíã %K (Smoothing)", minval = 1, group = grp1)
+dSmooth= input.int(3,  "İÊÑÉ %D", minval = 1, group = grp1)
+
+grp2 = "ÔÑæØ ÇáÏÎæá æÇáÎÑæÌ"
+buyLevel = input.float(20,  "ÇáÏÎæá: ÔÑÇÁ ÚäÏãÇ %K íÕá Åáì åĞÇ ÇáãÓÊæì Ãæ ÃŞá", minval = 0, maxval = 50, group = grp2)
+tpLevel  = input.float(50, "Ìäí ÇáÃÑÈÇÍ: ÅÛáÇŞ ÚäÏãÇ %K íÕá Åáì åĞÇ ÇáãÓÊæì", minval = 0, maxval = 100, group = grp2)
+
+grp3 = "ÅÏÇÑÉ ÇáãÎÇØÑ"
+slPercent = input.float(1, "æŞİ ÇáÎÓÇÑÉ % ãä ÓÚÑ ÇáÏÎæá", minval = 0.1, step = 0.1, group = grp3)
+
+grpEma = "İáÊÑ ÇáÇÊÌÇå (EMA200)"
+useEmaFilter = input.bool(true, "ÊİÚíá İáÊÑ EMA200 (ÔÑÇÁ İŞØ ÅĞÇ ßÇä ÇáÓÚÑ İæŞ EMA200)", group = grpEma)
+emaLen       = input.int(200, "İÊÑÉ EMA", minval = 1, group = grpEma)
+
+grp4 = "İÊÑÉ ÇáÇÎÊÈÇÑ (Backtest Range)"
+startDate = input.time(timestamp("2022-01-01"), "ÊÇÑíÎ ÇáÈÏÇíÉ", group = grp4)
+endDate   = input.time(timestamp("2099-12-31"), "ÊÇÑíÎ ÇáäåÇíÉ", group = grp4)
+inDateRange = time >= startDate and time <= endDate
+
+// ============================== ÇáÍÓÇÈÇÊ ===================================
+rawK = ta.stoch(close, high, low, kLen)
+k = ta.sma(rawK, kSmooth)
+d = ta.sma(k, dSmooth)
+emaValue = ta.ema(close, emaLen)
+
+// ÔÑØ ÇáÇÊÌÇå: ÇáÓÚÑ İæŞ EMA200 íÚäí ÇÊÌÇå ÚÇã ÕÇÚÏ (íõÔÊÑØ İŞØ ÅĞÇ ÇáİáÊÑ ãİÚøá)
+bullishTrend = not useEmaFilter or close > emaValue
+
+// ÔÑØ ÇáÏÎæá: %K æÕá Ãæ äÒá ÊÍÊ ãÓÊæì ÇáÔÑÇÁ (ÊÔÈÚ ÈíÚí ÔÏíÏ ŞÑÈ ÇáÕİÑ) + ÇáÇÊÌÇå ÇáÚÇã ÕÇÚÏ
+buySignal = k <= buyLevel and bullishTrend and inDateRange and strategy.position_size == 0
+
+// ÔÑØ Ìäí ÇáÃÑÈÇÍ: %K æÕá Åáì ãÓÊæì ÇáÎÑæÌ (50) æÇáÕİŞÉ ãİÊæÍÉ
+takeProfitSignal = k >= tpLevel and strategy.position_size > 0
+
+// ============================== ÊäİíĞ ÇáÕİŞÇÊ ================================
+if buySignal
+    strategy.entry("Long", strategy.long)
+
+// æŞİ ÎÓÇÑÉ ËÇÈÊ % ãä ÓÚÑ ÇáÏÎæá
+if strategy.position_size > 0
+    slPrice = strategy.position_avg_price * (1 - slPercent / 100)
+    strategy.exit("SL/TP", "Long", stop = slPrice)
+
+// Ìäí ÇáÃÑÈÇÍ ÚäÏ æÕæá ÇáãÄÔÑ áãÓÊæì 50 (ÎÑæÌ ÈÃãÑ ÓæŞ ãÈÇÔÑ)
+if takeProfitSignal
+    strategy.close("Long", comment = "TP - Stoch 70")
+
+// ============================== ÇáÑÓã Úáì ÇáÔÇÑÊ ÇáÑÆíÓí =====================
+plot(useEmaFilter ? emaValue : na, "EMA200", color = color.new(color.purple, 0),
+     linewidth = 2, force_overlay = true)
+
+bgcolor(useEmaFilter ? (bullishTrend ? color.new(color.green, 95) : color.new(color.red, 95)) : na,
+     title = "ÎáİíÉ ÇáÇÊÌÇå Úáì ÇáÔÇÑÊ ÇáÑÆíÓí", force_overlay = true)
+
+// ============================== ÇáÑÓã Úáì ÇáãÄÔÑ =============================
+plot(k, "%K", color = color.new(color.blue, 0), linewidth = 2)
+plot(d, "%D", color = color.new(color.orange, 0), linewidth = 1)
+
+hline(buyLevel, "ãÓÊæì ÇáÔÑÇÁ", color = color.new(color.green, 0), linestyle = hline.style_dashed)
+hline(tpLevel,  "ãÓÊæì Ìäí ÇáÃÑÈÇÍ", color = color.new(color.red, 0), linestyle = hline.style_dashed)
+hline(80, "ÊÔÈÚ ÔÑÇÆí", color = color.new(color.gray, 60))
+hline(20, "ÊÔÈÚ ÈíÚí", color = color.new(color.gray, 60))
+
+bgcolor(buySignal ? color.new(color.green, 85) : na)
+bgcolor(takeProfitSignal ? color.new(color.red, 85) : na)

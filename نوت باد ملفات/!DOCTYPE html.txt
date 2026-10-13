@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>كيك إت — الزاوية المستحيلة</title>
+<style>
+  :root{
+    --pitch-dark:#0B2E22; --pitch:#0F3D2E; --pitch-light:#14502F;
+    --chalk:#EDEAE0; --floodlight:#F7F5EE;
+    --gold:#D6A544; --gold-dim:#8C6F2E;
+    --net:rgba(237,234,224,0.4); --kit:#C9432B;
+    --panel:#0E241C; --panel-line:rgba(237,234,224,0.12);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background: radial-gradient(ellipse at 50% -10%, #1a5c3d 0%, var(--pitch-dark) 55%, #071d15 100%);
+    color:var(--floodlight);
+    font-family:-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+    height:100vh; overflow:hidden;
+    display:flex; flex-direction:column;
+    padding:16px 20px;
+  }
+  .wrap{ max-width:1400px; width:100%; margin:0 auto; height:100%; display:flex; flex-direction:column; min-height:0; }
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-wrap:wrap; margin-bottom:14px; flex-shrink:0;
+  }
+  .title-block h1{ font-size:22px; font-weight:800; letter-spacing:-0.01em; }
+  .title-block h1 span{ color:var(--gold); }
+  .title-block .kicker{ font-size:10.5px; letter-spacing:0.13em; color:var(--gold); font-weight:700; margin-bottom:3px; }
+
+  .stat-strip{ display:flex; gap:8px; }
+  .stat-chip{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:9px;
+    padding:8px 14px; text-align:center; min-width:76px;
+  }
+  .stat-chip .t{ font-size:10px; color:#8FA69A; margin-bottom:2px; white-space:nowrap; }
+  .stat-chip .v{ font-size:17px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .stat-chip .v.gold{ color:var(--gold); }
+
+  .game-grid{
+    flex:1; min-height:0; display:flex; flex-direction:column;
+  }
+  .field-panel{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:14px;
+    padding:16px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-width:0; flex:1; min-height:0; direction:rtl;
+  }
+
+  /* ===== HUD panels floating inside the field, flanking the ball ===== */
+  .hud-panel{
+    position:absolute; z-index:7;
+    background:rgba(10,26,20,0.62); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border:1px solid rgba(237,234,224,0.16); border-radius:14px;
+    box-shadow:0 10px 24px rgba(0,0,0,0.35);
+    padding:10px;
+  }
+  .hud-left{ left:3%; bottom:5%; width:30%; max-width:190px; display:flex; flex-direction:column; align-items:center; }
+  .hud-right{ right:3%; bottom:5%; width:30%; max-width:200px; }
+
+  .hud-title{ font-size:10.5px; color:#9FB3A8; margin-bottom:6px; text-align:center; }
+
+  /* Joystick */
+  .joystick{
+    width:min(88px, 22vw); aspect-ratio:1/1; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, rgba(237,234,224,0.1), rgba(0,0,0,0.25));
+    border:1px solid rgba(237,234,224,0.2);
+    position:relative; touch-action:none; cursor:grab; margin:0 auto;
+  }
+  .joystick:active{ cursor:grabbing; }
+  .joy-handle{
+    position:absolute; width:36%; aspect-ratio:1/1; border-radius:50%;
+    background:radial-gradient(circle at 32% 30%, var(--gold), var(--gold-dim));
+    top:50%; left:50%; transform:translate(-50%,-50%);
+    box-shadow:0 3px 8px rgba(0,0,0,0.4); pointer-events:none;
+  }
+  .joy-readout{ font-size:10px; color:#8FA69A; text-align:center; margin-top:6px; }
+  .joy-readout b{ color:var(--gold); }
+
+  .btn-row{ display:flex; gap:6px; margin-top:10px; width:100%; }
+  .shoot-controls{
+    position:absolute; bottom:8%; left:50%; transform:translate(-50%,0);
+    display:flex; gap:8px; z-index:3; /* sits behind the ball (z-index 4) */
+  }
+  .btn{
+    padding:10px 20px; border-radius:9px; border:none; font-size:13px; font-weight:800;
+    cursor:pointer; transition:all 0.15s ease; white-space:nowrap;
+    background:rgba(10,26,20,0.7); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .btn-shoot{ background:linear-gradient(180deg, var(--kit), #9C3620); color:#fff; padding:10px 28px; box-shadow:0 6px 16px rgba(0,0,0,0.35); }
+  .btn-shoot:hover{ filter:brightness(1.08); }
+  .btn-shoot:disabled{ background:#4A4A4A; cursor:not-allowed; filter:none; }
+  .btn-reset{ border:1px solid rgba(237,234,224,0.25); color:#B9C4BC; box-shadow:0 6px 16px rgba(0,0,0,0.3); }
+  .btn-reset:hover{ border-color:var(--gold); color:var(--gold); }
+
+  .hud-right .log-title{ font-size:11px; font-weight:700; margin-bottom:6px; }
+  .hud-right .log-list{ max-height:160px; overflow-y:auto; }
+  .log-empty{ font-size:11px; color:#7E958A; padding:4px 0; }
+  .log-item{
+    display:flex; align-items:center; gap:6px; padding:5px 0;
+    border-top:1px solid rgba(237,234,224,0.08); font-size:10.5px;
+  }
+  .log-item:first-of-type{ border-top:none; }
+  .log-icon{ width:16px; text-align:center; font-size:11px; }
+  .log-desc{ flex:1; color:var(--chalk); }
+  .log-pts{ font-weight:800; font-variant-numeric:tabular-nums; font-size:10.5px; }
+  .log-pts.up{ color:var(--gold); }
+  .log-pts.down{ color:#8FA69A; }
+
+  /* Small directional arrow anchored at the ball, previews the shot line */
+  .aim-arrow{
+    position:absolute; width:3px; height:34px; left:50%; bottom:24%;
+    background:linear-gradient(180deg, var(--gold), rgba(214,165,68,0));
+    transform-origin:bottom center; transform:translate(-50%,0) rotate(0deg) scaleY(0.8);
+    border-radius:3px; z-index:5; pointer-events:none;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  .aim-arrow::before{
+    content:""; position:absolute; top:-1px; left:50%; transform:translateX(-50%);
+    border-left:5px solid transparent; border-right:5px solid transparent; border-bottom:8px solid var(--gold);
+  }
+
+  /* ===== Field ===== */
+  .field{
+    position:relative; aspect-ratio:16/11; height:auto;
+    width:min(100%, calc((100vh - 190px) * 16 / 11));
+    background:linear-gradient(180deg, var(--pitch-dark) 0%, var(--pitch) 45%, var(--pitch-light) 100%);
+    border-radius:12px; border:1px solid rgba(237,234,224,0.15);
+    overflow:hidden; margin:0 auto;
+  }
+  .field::after{
+    content:""; position:absolute; inset:0;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 5%, rgba(0,0,0,0.05) 5%, rgba(0,0,0,0.05) 10%);
+    pointer-events:none;
+  }
+  .field::before{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(0,0,0,0.4), transparent 25%); pointer-events:none; z-index:5;
+  }
+  .pitch-lines{ position:absolute; inset:0; z-index:1; }
+  .penalty-box{
+    position:absolute; left:50%; bottom:6%; top:16%; width:60%; transform:translateX(-50%);
+    border-left:2px solid rgba(237,234,224,0.5); border-right:2px solid rgba(237,234,224,0.5); border-top:2px solid rgba(237,234,224,0.5);
+    clip-path:polygon(18% 0%, 82% 0%, 100% 100%, 0% 100%);
+  }
+  .six-yard-box{
+    position:absolute; left:50%; bottom:6%; top:34%; width:32%; transform:translateX(-50%);
+    border-left:2px solid rgba(237,234,224,0.45); border-right:2px solid rgba(237,234,224,0.45); border-top:2px solid rgba(237,234,224,0.45);
+    clip-path:polygon(28% 0%, 72% 0%, 100% 100%, 0% 100%);
+  }
+  .penalty-arc{
+    position:absolute; left:50%; bottom:20%; width:110px; height:54px; transform:translateX(-50%);
+    border:2px solid rgba(237,234,224,0.45); border-radius:50%; clip-path:inset(0 0 40% 0);
+  }
+  .penalty-spot{
+    position:absolute; left:50%; bottom:24%; width:6px; height:6px; border-radius:50%;
+    background:rgba(237,234,224,0.7); transform:translateX(-50%);
+  }
+
+  .goal-frame{ position:absolute; top:6%; left:50%; transform:translateX(-50%); width:52%; aspect-ratio:3.6/1; z-index:2; }
+  .post{ position:absolute; background:var(--floodlight); box-shadow:0 0 6px rgba(255,255,255,0.55); }
+  .post.top{ top:0; left:2%; right:2%; height:9%; border-radius:2px; }
+  .post.left{ top:0; left:2%; width:2.6%; height:100%; border-radius:2px; }
+  .post.right{ top:0; right:2%; width:2.6%; height:100%; border-radius:2px; }
+  .net{
+    position:absolute; top:9%; left:4.6%; right:4.6%; bottom:0;
+    background-image:repeating-linear-gradient(0deg, var(--net) 0 1px, transparent 1px 8px), repeating-linear-gradient(90deg, var(--net) 0 1px, transparent 1px 8px);
+    opacity:0.75; transform-origin:top center;
+  }
+  .net.shake{ animation:netShake 0.55s ease; }
+  @keyframes netShake{
+    0%{transform:skewX(0) scaleY(1);} 15%{transform:skewX(-4deg) scaleY(1.03);}
+    32%{transform:skewX(3deg) scaleY(0.98);} 50%{transform:skewX(-2deg) scaleY(1.015);}
+    68%{transform:skewX(1.5deg) scaleY(0.995);} 100%{transform:skewX(0) scaleY(1);}
+  }
+  .net-back{
+    position:absolute; top:-38%; left:4.6%; right:4.6%; height:38%;
+    background-image:repeating-linear-gradient(0deg, var(--net) 0 1px, transparent 1px 8px), repeating-linear-gradient(90deg, var(--net) 0 1px, transparent 1px 8px);
+    opacity:0.4; clip-path:polygon(8% 100%, 92% 100%, 100% 0%, 0% 0%);
+  }
+
+  .target-circle{
+    position:absolute; top:9%; right:4.6%; width:30%; height:44%;
+    display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:3;
+  }
+  .target-circle .ring{
+    width:62%; aspect-ratio:1/1; border-radius:50%; border:2.5px dashed var(--gold);
+    display:flex; align-items:center; justify-content:center;
+    animation:pulse 2.2s ease-in-out infinite; box-shadow:0 0 14px rgba(214,165,68,0.35);
+    background:rgba(214,165,68,0.12);
+  }
+  .target-circle .ring span{ font-size:10px; font-weight:800; color:var(--gold); }
+  @keyframes pulse{ 0%,100%{box-shadow:0 0 8px rgba(214,165,68,0.25);} 50%{box-shadow:0 0 18px rgba(214,165,68,0.55);} }
+
+  .aim-marker{
+    position:absolute; width:10px; height:10px; border-radius:50%;
+    background:var(--gold); border:2px solid var(--floodlight);
+    transform:translate(-50%,-50%); z-index:6; opacity:0.85;
+    transition: top 0.15s ease, left 0.15s ease;
+    box-shadow:0 0 6px rgba(214,165,68,0.7);
+  }
+
+  .keeper{
+    position:absolute; bottom:2%; left:50%; width:16%; aspect-ratio:1/2.1;
+    transform:translate(-50%,0); z-index:4;
+    transition: left 0.16s cubic-bezier(.2,.85,.3,1), transform 0.16s cubic-bezier(.2,.85,.3,1);
+  }
+  .keeper .torso{
+    position:absolute; bottom:22%; left:50%; transform:translateX(-50%); width:88%; height:46%;
+    background:linear-gradient(180deg, var(--kit), #8C2E1C);
+    clip-path:polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%); /* shoulders wider than waist */
+    box-shadow:0 4px 8px rgba(0,0,0,0.45);
+    transition: transform 0.16s cubic-bezier(.2,.85,.3,1);
+  }
+  .keeper .head{
+    position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:44%; aspect-ratio:1/1; border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, #2A2A2E, #17171A 75%); /* faceless anonymous silhouette */
+  }
+  .leg{
+    position:absolute; bottom:-14%; width:26%; height:38%;
+    background:#1B1E24; border-radius:0 0 4px 4px;
+    transition: transform 0.16s cubic-bezier(.2,.85,.3,1);
+  }
+  .leg-l{ left:22%; transform:rotate(-4deg); }
+  .leg-r{ right:22%; transform:rotate(4deg); }
+  .keeper .arm{
+    position:absolute; top:22%; width:70%; height:15%; background:#8C2E1C; border-radius:8px;
+    transform-origin: 6% 50%; opacity:0.9; transition: all 0.16s cubic-bezier(.2,.85,.3,1);
+  }
+  .keeper .arm.arm-l{ left:-52%; transform:rotate(6deg); }
+  .keeper .arm.arm-r{ right:-52%; transform-origin:94% 50%; transform:rotate(-6deg); }
+
+  /* Keeper stays anchored on the goal line and dives sideways to make the save — no vertical
+     teleporting, since that broke the "leaving the goal" illusion. A tall save only stretches
+     the body upward slightly (arms/torso), it never relocates the whole keeper. */
+  .keeper.dive-left{ transform:translate(-50%,0) translateX(-34%) rotate(-30deg); }
+  .keeper.dive-right{ transform:translate(-50%,0) translateX(34%) rotate(30deg); }
+  .keeper.jump-up{ transform:translate(-50%,-14%); }
+  .keeper.jump-up.dive-left{ transform:translate(-50%,-14%) translateX(-34%) rotate(-30deg); }
+  .keeper.jump-up.dive-right{ transform:translate(-50%,-14%) translateX(34%) rotate(30deg); }
+  .keeper.dive-left .torso, .keeper.dive-right .torso{ transform:translateX(-50%) scaleX(1.2); }
+  .keeper.dive-left .leg-l{ transform:rotate(-26deg) translateX(-8%); }
+  .keeper.dive-left .leg-r{ transform:rotate(-14deg); }
+  .keeper.dive-right .leg-r{ transform:rotate(26deg) translateX(8%); }
+  .keeper.dive-right .leg-l{ transform:rotate(14deg); }
+  .keeper.dive-left .arm.arm-l{ opacity:1; transform:rotate(-30deg); }
+  .keeper.dive-right .arm.arm-r{ opacity:1; transform:rotate(30deg); }
+  .keeper.jump-up .leg-l{ transform:scaleY(0.75) rotate(-4deg); }
+  .keeper.jump-up .leg-r{ transform:scaleY(0.75) rotate(4deg); }
+
+  .ball{
+    position:absolute; width:20px; height:20px; border-radius:50%;
+    background:radial-gradient(circle at 32% 30%, #fff, #d8d8d8 55%, #a8a8a8 100%);
+    bottom:24%; left:50%; transform:translate(-50%,0); box-shadow:0 3px 6px rgba(0,0,0,0.5); z-index:4;
+  }
+  .ball.shooting{ transition:all 0.5s cubic-bezier(.15,.7,.3,1); }
+
+  .result-banner{
+    text-align:center; margin-top:12px; min-height:26px; font-size:16px; font-weight:800;
+    opacity:0; transform:translateY(-4px); transition:all 0.25s ease;
+  }
+  .result-banner.show{ opacity:1; transform:translateY(0); }
+  .result-banner.goal{ color:var(--gold); }
+  .result-banner.saved{ color:#E58C77; }
+  .result-banner.miss{ color:#8FA69A; }
+
+  .celebrate-flash{ position:absolute; inset:0; background:rgba(214,165,68,0.18); opacity:0; pointer-events:none; z-index:8; }
+  .celebrate-flash.on{ animation:flashPop 0.9s ease; }
+  @keyframes flashPop{
+    0%{ opacity:0; background:rgba(247,245,238,0.9); }
+    12%{ opacity:1; background:rgba(247,245,238,0.85); }
+    30%{ opacity:0.7; background:rgba(214,165,68,0.4); }
+    100%{ opacity:0; background:rgba(214,165,68,0.15); }
+  }
+  .celebrate-dim{ position:absolute; inset:0; background:rgba(4,12,9,0.6); opacity:0; pointer-events:none; z-index:9; }
+  .celebrate-dim.on{ animation:dimPop 1.5s ease; }
+  @keyframes dimPop{
+    0%{ opacity:0; } 18%{ opacity:1; } 78%{ opacity:0.85; } 100%{ opacity:0; }
+  }
+  .field.celebrating{ animation:fieldPulse 0.9s ease; }
+  @keyframes fieldPulse{
+    0%{ filter:brightness(1); } 15%{ filter:brightness(1.35); } 100%{ filter:brightness(1); }
+  }
+  .confetti-layer{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:10; }
+  .confetti-piece{ position:absolute; top:-10%; width:6px; height:10px; opacity:0.95; animation-timing-function:cubic-bezier(.2,.6,.4,1); animation-fill-mode:forwards; }
+  @keyframes confettiFall{ 0%{transform:translateY(0) rotate(0deg); opacity:1;} 100%{transform:translateY(120%) rotate(420deg); opacity:0;} }
+  .goal-text{
+    position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) scale(0.4);
+    font-size:40px; font-weight:900; color:var(--gold);
+    text-shadow:0 0 22px rgba(214,165,68,0.8), 0 2px 4px rgba(0,0,0,0.6);
+    background:rgba(6,16,12,0.72); border:1px solid rgba(214,165,68,0.4);
+    padding:10px 28px; border-radius:14px; box-shadow:0 12px 30px rgba(0,0,0,0.5);
+    opacity:0; pointer-events:none; z-index:11; white-space:nowrap;
+  }
+  .goal-text.pop{ animation:goalPop 1.5s cubic-bezier(.2,.9,.3,1.2) forwards; }
+  @keyframes goalPop{
+    0%{opacity:0; transform:translate(-50%,-50%) scale(0.3) rotate(-4deg);}
+    18%{opacity:1; transform:translate(-50%,-50%) scale(1.2) rotate(2deg);}
+    30%{transform:translate(-50%,-50%) scale(0.95) rotate(-1deg);}
+    42%{opacity:1; transform:translate(-50%,-50%) scale(1.05) rotate(0deg);}
+    84%{opacity:1; transform:translate(-50%,-50%) scale(1.05) rotate(0deg);}
+    100%{opacity:0; transform:translate(-50%,-50%) scale(1) rotate(0deg);}
+  }
+
+  footer{ text-align:center; margin-top:8px; font-size:10px; color:#5E7268; line-height:1.5; flex-shrink:0; }
+
+  @media (max-width:900px){
+    body{ height:auto; overflow:auto; }
+    .wrap{ height:auto; }
+    .field{ width:100%; max-width:480px; }
+    .hud-panel{ padding:7px; }
+    .hud-left{ width:26%; }
+    .hud-right{ width:30%; }
+    .joystick{ width:min(56px, 16vw); }
+    .btn{ font-size:10.5px; padding:7px 12px; }
+    .btn-shoot{ padding:7px 16px; }
+    .shoot-controls{ bottom:6%; gap:5px; }
+    .stat-strip{ flex-wrap:wrap; }
+    .title-block h1{ font-size:20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title-block">
+      <div class="kicker">نموذج أولي — كيك إت</div>
+      <h1>الزاوية <span>المستحيلة</span></h1>
+    </div>
+    <div class="stat-strip">
+      <div class="stat-chip"><div class="t">الكومبو</div><div class="v gold" id="comboVal">×1</div></div>
+      <div class="stat-chip"><div class="t">النقاط</div><div class="v" id="scoreVal">0</div></div>
+      <div class="stat-chip"><div class="t">متبقٍ</div><div class="v" id="attemptsVal">10</div></div>
+      <div class="stat-chip"><div class="t">أفضل نتيجة</div><div class="v gold" id="bestVal">0</div></div>
+    </div>
+  </div>
+
+  <div class="game-grid">
+    <div class="field-panel">
+      <div class="field" id="field">
+        <div class="pitch-lines">
+          <div class="penalty-box"></div>
+          <div class="six-yard-box"></div>
+          <div class="penalty-arc"></div>
+          <div class="penalty-spot"></div>
+        </div>
+
+        <div class="goal-frame" id="goalFrame">
+          <div class="post top"></div>
+          <div class="post left"></div>
+          <div class="post right"></div>
+          <div class="net-back"></div>
+          <div class="net"></div>
+          <div class="target-circle"><div class="ring"><span>×5</span></div></div>
+          <div class="aim-marker" id="aimMarker"></div>
+          <div class="keeper" id="keeper">
+            <div class="head"></div>
+            <div class="torso"></div>
+            <div class="leg leg-l"></div><div class="leg leg-r"></div>
+            <div class="arm arm-l"></div><div class="arm arm-r"></div>
+          </div>
+        </div>
+
+        <div class="shoot-controls">
+          <button class="btn btn-reset" id="resetBtn">إعادة</button>
+          <button class="btn btn-shoot" id="shootBtn">سدّد</button>
+        </div>
+        <div class="aim-arrow" id="aimArrow"></div>
+        <div class="ball" id="ball"></div>
+
+        <div class="hud-panel hud-left">
+          <div class="hud-title">وجّه ثم سدّد</div>
+          <div class="joystick" id="joystick">
+            <div class="joy-handle" id="joyHandle"></div>
+          </div>
+          <div class="joy-readout">قوة <b id="powerOut">0%</b></div>
+        </div>
+
+        <div class="hud-panel hud-right">
+          <div class="log-title">سجل التسديدات</div>
+          <div class="log-list" id="logList"><div class="log-empty">لم تبدأ بعد</div></div>
+        </div>
+
+        <div class="celebrate-flash" id="celebrateFlash"></div>
+        <div class="celebrate-dim" id="celebrateDim"></div>
+        <div class="confetti-layer" id="confettiLayer"></div>
+        <div class="goal-text" id="goalText">هـدف!</div>
+      </div>
+      <div class="result-banner" id="resultBanner"></div>
+    </div>
+  </div>
+
+  <footer>نموذج أولي لغرض العرض فقط — لا يتم حفظ أي بيانات فعلية أو إرسالها لأي جهة.</footer>
+</div>
+
+<script>
+(function(){
+  const field = document.getElementById('field');
+  const ball = document.getElementById('ball');
+  const keeper = document.getElementById('keeper');
+  const netEl = document.querySelector('.net');
+  const aimMarker = document.getElementById('aimMarker');
+  const aimArrow = document.getElementById('aimArrow');
+  const celebrateFlash = document.getElementById('celebrateFlash');
+  const celebrateDim = document.getElementById('celebrateDim');
+  const confettiLayer = document.getElementById('confettiLayer');
+  const goalText = document.getElementById('goalText');
+  const resultBanner = document.getElementById('resultBanner');
+  const logList = document.getElementById('logList');
+
+  const joystick = document.getElementById('joystick');
+  const joyHandle = document.getElementById('joyHandle');
+  const powerOut = document.getElementById('powerOut');
+  const shootBtn = document.getElementById('shootBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const comboVal = document.getElementById('comboVal');
+  const scoreVal = document.getElementById('scoreVal');
+  const attemptsVal = document.getElementById('attemptsVal');
+  const bestVal = document.getElementById('bestVal');
+
+  const MAX_ATTEMPTS = 10;
+  const MAX_COMBO = 5;
+
+  let state = { score:0, attempts:0, combo:1, best:0 };
+  let busy = false;
+
+  // Joystick vector, each in -1..1. dx = left/right, dy = up(-1)/down(+1).
+  let aimDX = 0, aimDY = -0.35;
+
+  // ===== Joystick drag handling =====
+  let dragging = false;
+  function setHandle(dx, dy){
+    joyHandle.style.left = (50 + dx*50) + '%';
+    joyHandle.style.top = (50 + dy*50) + '%';
+  }
+  function pointerToVector(clientX, clientY){
+    const rect = joystick.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    let dx = (clientX - cx) / (rect.width/2);
+    let dy = (clientY - cy) / (rect.height/2);
+    const mag = Math.hypot(dx, dy);
+    if(mag > 1){ dx /= mag; dy /= mag; }
+    return { dx, dy };
+  }
+  function startDrag(e){
+    if(busy || state.attempts >= MAX_ATTEMPTS) return;
+    dragging = true;
+    joystick.style.cursor = 'grabbing';
+    moveDrag(e);
+  }
+  function moveDrag(e){
+    if(!dragging) return;
+    const point = e.touches ? e.touches[0] : e;
+    const { dx, dy } = pointerToVector(point.clientX, point.clientY);
+    aimDX = dx; aimDY = dy;
+    setHandle(dx, dy);
+    updateAimPreview();
+    e.preventDefault && e.preventDefault();
+  }
+  function endDrag(){
+    dragging = false;
+    joystick.style.cursor = 'grab';
+  }
+  joystick.addEventListener('mousedown', startDrag);
+  window.addEventListener('mousemove', moveDrag);
+  window.addEventListener('mouseup', endDrag);
+  joystick.addEventListener('touchstart', startDrag, {passive:false});
+  window.addEventListener('touchmove', moveDrag, {passive:false});
+  window.addEventListener('touchend', endDrag);
+
+  // Map the joystick vector to a target point inside the goal frame (percentages), full 2D freedom.
+  function computeTarget(dx, dy){
+    const magnitude = Math.min(1, Math.hypot(dx, dy));
+    const x = Math.max(4, Math.min(96, 50 + dx * 48));
+    let y = Math.max(3, Math.min(95, 50 + dy * 48));
+    let overTheBar = false;
+    if(magnitude > 0.93 && y < 14){
+      overTheBar = true;
+    }
+    return { x, y, overTheBar, magnitude };
+  }
+
+  function updateAimPreview(){
+    const t = computeTarget(aimDX, aimDY);
+    powerOut.textContent = Math.round(t.magnitude*100) + '%';
+
+    // Arrow at the ball previews the shot direction/height
+    const rotDeg = aimDX * 55;
+    const lengthScale = 0.7 + t.magnitude*0.9;
+    aimArrow.style.transform = `translate(-50%,0) rotate(${rotDeg}deg) scaleY(${lengthScale})`;
+    aimArrow.style.opacity = 0.55 + t.magnitude*0.4;
+
+    if(t.overTheBar){
+      aimMarker.style.opacity = '0.25';
+      aimMarker.style.top = '-6%';
+      aimMarker.style.left = t.x + '%';
+    } else {
+      aimMarker.style.opacity = '0.9';
+      aimMarker.style.top = t.y + '%';
+      aimMarker.style.left = t.x + '%';
+    }
+  }
+
+  function isInTargetCircle(x, y){
+    // target circle center roughly at x~80%, y~28% within the goal-frame box, radius ~11 (tight — precision required)
+    const cx = 80, cy = 28, r = 11;
+    const d = Math.hypot(x-cx, y-cy);
+    return d <= r;
+  }
+
+  function zoneFor(x, y){
+    const top = y < 44;
+    if(top){
+      if(x < 35) return 'tl';
+      if(x < 65) return 'tc';
+      return 'tr';
+    } else {
+      if(x < 35) return 'bl';
+      if(x < 65) return 'bc';
+      return 'br';
+    }
+  }
+  const zonePoints = { tl:30, tc:20, tr:40, bl:30, bc:10, br:30 };
+
+  // Keeper's guessed horizontal position (0-100), biased toward the target-circle side —
+  // and now reacts across a wide span rather than one exact zone, making the keeper hard to beat.
+  function keeperGuessX(inTarget){
+    // Keeper anticipates the target-circle corner most of the time, otherwise reads center-mass.
+    const base = inTarget ? 76 : (42 + Math.random()*16);
+    // add some natural variance in the keeper's read
+    const variance = (Math.random()-0.5) * 22;
+    return Math.max(14, Math.min(86, base + variance));
+  }
+  // Keeper's guessed vertical position, loosely tracking the shot height so the whole body dives/jumps.
+  function keeperGuessY(targetY){
+    const variance = (Math.random()-0.5) * 22;
+    return Math.max(2, Math.min(70, targetY + variance));
+  }
+
+  function fireConfetti(){
+    const colors = ['#D6A544','#F7F5EE','#8C6F2E','#EDEAE0'];
+    for(let i=0;i<24;i++){
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.left = (15+Math.random()*70) + '%';
+      p.style.background = colors[Math.floor(Math.random()*colors.length)];
+      p.style.animationName = 'confettiFall';
+      p.style.animationDelay = (Math.random()*0.15) + 's';
+      p.style.animationDuration = (0.9+Math.random()*0.6) + 's';
+      p.style.borderRadius = Math.random()>0.5 ? '50%' : '2px';
+      confettiLayer.appendChild(p);
+      setTimeout(()=>p.remove(), 1800);
+    }
+  }
+
+  function celebrate(bigWin){
+    field.classList.remove('celebrating'); void field.offsetWidth; field.classList.add('celebrating');
+    netEl.classList.remove('shake'); void netEl.offsetWidth; netEl.classList.add('shake');
+    celebrateFlash.classList.remove('on'); void celebrateFlash.offsetWidth; celebrateFlash.classList.add('on');
+    celebrateDim.classList.remove('on'); void celebrateDim.offsetWidth; celebrateDim.classList.add('on');
+    goalText.textContent = bigWin ? 'هدف من الزاوية المستحيلة!' : 'هـدف!';
+    goalText.classList.remove('pop'); void goalText.offsetWidth; goalText.classList.add('pop');
+    fireConfetti();
+  }
+
+  function showBanner(text, cls){
+    resultBanner.textContent = text;
+    resultBanner.className = 'result-banner show ' + cls;
+    setTimeout(()=> resultBanner.classList.remove('show'), 1500);
+  }
+
+  function addLog(icon, desc, pts, cls){
+    if(logList.querySelector('.log-empty')) logList.innerHTML = '';
+    const row = document.createElement('div');
+    row.className = 'log-item';
+    row.innerHTML = `<div class="log-icon">${icon}</div><div class="log-desc">${desc}</div><div class="log-pts ${cls}">${pts}</div>`;
+    logList.prepend(row);
+  }
+
+  function updateHUD(){
+    comboVal.textContent = '×' + state.combo;
+    scoreVal.textContent = state.score;
+    attemptsVal.textContent = Math.max(MAX_ATTEMPTS - state.attempts, 0);
+    bestVal.textContent = state.best;
+    const done = state.attempts >= MAX_ATTEMPTS;
+    shootBtn.disabled = done || busy;
+    if(done){
+      shootBtn.textContent = 'انتهت المحاولات';
+    } else {
+      shootBtn.textContent = 'سدّد';
+    }
+  }
+
+  function shoot(){
+    if(busy || state.attempts >= MAX_ATTEMPTS) return;
+    busy = true;
+    state.attempts++;
+
+    const dx = aimDX, dy = aimDY;
+    const t = computeTarget(dx, dy);
+
+    const fRect = field.getBoundingClientRect();
+    const goalFrame = document.getElementById('goalFrame');
+    const gRect = goalFrame.getBoundingClientRect();
+
+    if(t.overTheBar){
+      const bx = gRect.left - fRect.left + gRect.width * (t.x/100);
+      ball.classList.add('shooting');
+      requestAnimationFrame(()=>{
+        ball.style.left = bx + 'px';
+        ball.style.bottom = (fRect.height * 0.02) + 'px';
+        ball.style.top = '-6%';
+        ball.style.width='12px'; ball.style.height='12px';
+      });
+      setTimeout(()=>{
+        state.combo = 1;
+        showBanner('فوق العارضة! خفف القوة', 'miss');
+        addLog('⬆️', 'فوق العارضة', 'فاتت', 'down');
+        finishShot(700);
+      }, 420);
+      return;
+    }
+
+    // Extreme angles clip the post and miss outright — precision matters
+    const nearPost = t.x < 12 || t.x > 88;
+    if(nearPost && Math.random() < 0.55){
+      const bx = gRect.left - fRect.left + gRect.width * (t.x/100);
+      const by = gRect.top - fRect.top + gRect.height * (t.y/100);
+      ball.classList.add('shooting');
+      requestAnimationFrame(()=>{
+        ball.style.top = 'auto';
+        ball.style.left = bx + 'px';
+        ball.style.bottom = (fRect.height - by) + 'px';
+        ball.style.width='13px'; ball.style.height='13px';
+      });
+      setTimeout(()=>{
+        state.combo = 1;
+        showBanner('ارتطمت بالقائم!', 'miss');
+        addLog('🥅', 'ارتطام بالقائم', 'فاتت', 'down');
+        finishShot(700);
+      }, 420);
+      return;
+    }
+
+    const inTarget = isInTargetCircle(t.x, t.y);
+    const zone = zoneFor(t.x, t.y);
+    const basePts = inTarget ? 100 : zonePoints[zone];
+
+    const keeperX = keeperGuessX(inTarget);
+    const keeperY = keeperGuessY(t.y); // used for save-probability accuracy and the block point
+    keeper.style.left = keeperX + '%';
+    keeper.classList.remove('dive-left','dive-right','jump-up');
+    if(keeperX < t.x - 3) keeper.classList.add('dive-right');
+    if(keeperX > t.x + 3) keeper.classList.add('dive-left');
+    if(t.y < 35) keeper.classList.add('jump-up');
+
+    // Decide the outcome BEFORE animating, so the ball's path itself confirms it —
+    // a save visibly stops short and is parried away; a goal travels all the way into the net.
+    const ddx = Math.abs(t.x - keeperX);
+    const ddy = Math.abs(t.y - keeperY);
+    const distance = Math.hypot(ddx, ddy * 0.7);
+    let saveChance = Math.max(0.16, 0.88 - distance * 0.009);
+    if(inTarget) saveChance = Math.min(0.95, saveChance + 0.22);
+    const saved = Math.random() < saveChance;
+
+    const bx = gRect.left - fRect.left + gRect.width * (t.x/100);
+    const by = gRect.top - fRect.top + gRect.height * (t.y/100);
+
+    if(saved){
+      // Ball travels only to the keeper's interception point, not all the way to the target
+      const blockX = keeperX + (t.x - keeperX) * 0.55;
+      const blockY = t.y + (keeperY - t.y) * 0.35;
+      const kbx = gRect.left - fRect.left + gRect.width * (blockX/100);
+      const kby = gRect.top - fRect.top + gRect.height * (blockY/100);
+
+      ball.classList.add('shooting');
+      requestAnimationFrame(()=>{
+        ball.style.top = 'auto';
+        ball.style.left = kbx + 'px';
+        ball.style.bottom = (fRect.height - kby) + 'px';
+        ball.style.width='13px'; ball.style.height='13px';
+      });
+
+      setTimeout(()=>{
+        // Parry: ball bounces away from the keeper, down and to a side — unmistakably not a goal
+        const deflectX = Math.max(8, Math.min(92, blockX + (Math.random()>0.5?1:-1) * (14 + Math.random()*10)));
+        const deflectY = Math.min(96, blockY + 22 + Math.random()*10);
+        const dbx = gRect.left - fRect.left + gRect.width * (deflectX/100);
+        const dby = gRect.top - fRect.top + gRect.height * (deflectY/100);
+        ball.style.transition = 'all 0.3s cubic-bezier(.3,.6,.4,1)';
+        ball.style.left = dbx + 'px';
+        ball.style.bottom = (fRect.height - dby) + 'px';
+        ball.style.width='10px'; ball.style.height='10px';
+
+        state.combo = 1;
+        showBanner('تصدّى لها الحارس!', 'saved');
+        addLog('🧤', inTarget ? 'تسديدة نحو الزاوية — تصدٍّ' : `تسديدة ${zone.toUpperCase()} — تصدٍّ`, '+0', 'down');
+        finishShot(950);
+      }, 320);
+      return;
+    }
+
+    // Goal: ball travels all the way to the target and settles inside the net
+    ball.classList.add('shooting');
+    requestAnimationFrame(()=>{
+      ball.style.top = 'auto';
+      ball.style.left = bx + 'px';
+      ball.style.bottom = (fRect.height - by) + 'px';
+      ball.style.width='13px'; ball.style.height='13px';
+    });
+
+    setTimeout(()=>{
+      const pts = basePts * state.combo;
+      state.score += pts;
+      state.best = Math.max(state.best, state.score);
+      celebrate(inTarget);
+      showBanner(inTarget ? `هدف من الزاوية المستحيلة! +${pts}` : `هدف! +${pts}`, 'goal');
+      addLog(inTarget ? '🏆' : '⚽', inTarget ? `هدف من الزاوية المستحيلة — كومبو ×${state.combo}` : `هدف (${zone.toUpperCase()}) — كومبو ×${state.combo}`, '+'+pts, 'up');
+      if(state.combo < MAX_COMBO) state.combo++;
+      // Ball stays settled in the net during the celebration hold
+      finishShot(1700);
+    }, 480);
+  }
+
+  function finishShot(delay){
+    updateHUD();
+    setTimeout(()=>{
+      ball.style.transition = '';
+      ball.classList.remove('shooting');
+      ball.style.left = '50%'; ball.style.bottom = '24%'; ball.style.top = 'auto';
+      ball.style.width='20px'; ball.style.height='20px';
+      keeper.style.left = '50%';
+      keeper.classList.remove('dive-left','dive-right','jump-up');
+      busy = false;
+      updateHUD();
+    }, delay || 700);
+  }
+
+  shootBtn.addEventListener('click', shoot);
+  resetBtn.addEventListener('click', ()=>{
+    state = { score:0, attempts:0, combo:1, best:state.best };
+    aimDX = 0; aimDY = -0.35;
+    setHandle(aimDX, aimDY);
+    updateAimPreview();
+    updateHUD();
+    logList.innerHTML = '<div class="log-empty">لم تبدأ بعد</div>';
+    showBanner('تمت إعادة التحدي', 'goal');
+  });
+
+  setHandle(aimDX, aimDY);
+  updateAimPreview();
+  updateHUD();
+})();
+</script>
+</body>
+</html>

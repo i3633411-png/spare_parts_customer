@@ -1,0 +1,29 @@
+import os
+from flask import Flask, request
+hgvwd]
+app = Flask(__name__)
+
+# المسار الخاص بمجلد MQL5/Files لمنصة MT5 الخاصة بك
+SIGNAL_FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+#file_path = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.json
+    print(f"Received Data: {data}")
+
+    symbol = data.get("symbol", "BTCUSDm")
+    action = data.get("action", "")
+
+    if action in ["BUY", "SELL"]:
+        # كتابة الإشارة في مجلد MQL5/Files
+        with open(SIGNAL_FILE_PATH, "w") as f:
+            f.write(f"{symbol},{action}")
+        print(f"🔥 WRITTEN TO FILE (MQL5): {symbol},{action}")
+
+    return "OK", 200
+
+
+if __name__ == "__main__":
+    app.run(port=5000)

@@ -1,0 +1,158 @@
+//+------------------------------------------------------------------+
+#property strict
+#include <Trade/Trade.mqh>
+
+CTrade trade;
+
+// إعدادات السكالبينج
+input double LotSize = 0.10;
+input int StopLoss = 200;   // نقاط
+input int TakeProfit = 300; // نقاط
+input int MaxSpread = 50;   // فلتر السبريد
+
+string last_signal="";
+string last_symbol="";
+string last_action="";
+
+//+------------------------------------------------------------------+
+string FindSymbol(string base)
+{
+   int total = SymbolsTotal(true);
+
+   for(int i=0;i<total;i++)
+   {
+      string sym = SymbolName(i,true);
+      string u = sym;
+      StringToUpper(u);
+
+      if(u == base || u == base + "M")
+         return sym;
+   }
+
+   return "";
+}
+//+------------------------------------------------------------------+
+
+void CloseAll()
+{
+   for(int i=PositionsTotal()-1;i>=0;i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+
+      if(PositionSelectByTicket(ticket))
+      {
+         string sym = PositionGetString(POSITION_SYMBOL);
+         trade.PositionClose(sym);
+      }
+   }
+}
+//+------------------------------------------------------------------+
+
+bool SpreadOK(string symbol)
+{
+   double spread = (SymbolInfoDouble(symbol,SYMBOL_ASK) -
+                    SymbolInfoDouble(symbol,SYMBOL_BID))/_Point;
+
+   if(spread > MaxSpread)
+   {
+      Print("⚠️ Spread too high: ", spread);
+      return false;
+   }
+
+   return true;
+}
+//+------------------------------------------------------------------+
+
+void OpenTrade(string symbol,string action)
+{
+   double price, sl, tp;
+
+   if(action=="BUY")
+   {
+      price = SymbolInfoDouble(symbol,SYMBOL_ASK);
+      sl = price - StopLoss*_Point;
+      tp = price + TakeProfit*_Point;
+
+      trade.Buy(LotSize,symbol,price,sl,tp);
+      Print("🟢 BUY ",symbol);
+   }
+   else if(action=="SELL")
+   {
+      price = SymbolInfoDouble(symbol,SYMBOL_BID);
+      sl = price + StopLoss*_Point;
+      tp = price - TakeProfit*_Point;
+
+      trade.Sell(LotSize,symbol,price,sl,tp);
+      Print("🔴 SELL ",symbol);
+   }
+}
+//+------------------------------------------------------------------+
+
+string ReadSignal()
+{
+   int handle = FileOpen("Signal.txt",FILE_READ|FILE_TXT|FILE_ANSI);
+
+   if(handle==INVALID_HANDLE)
+      return "";
+
+   string text = FileReadString(handle);
+   FileClose(handle);
+
+   StringTrimLeft(text);
+   StringTrimRight(text);
+
+   return text;
+}
+//+------------------------------------------------------------------+
+
+void OnTick()
+{
+   string signal = ReadSignal();
+
+   if(signal=="" || signal==last_signal)
+      return;
+
+   Print("📥 Signal: ",signal);
+
+   string parts[];
+   int count = StringSplit(signal,',',parts);
+
+   if(count!=2)
+      return;
+
+   string base = parts[0];
+   string action = parts[1];
+
+   StringToUpper(base);
+
+   string symbol = FindSymbol(base);
+
+   if(symbol=="")
+   {
+      Print("❌ Symbol not found: ",base);
+      return;
+   }
+
+   // منع تكرار
+   if(symbol==last_symbol && action==last_action)
+   {
+      Print("⛔ Same signal ignored");
+      return;
+   }
+
+   SymbolSelect(symbol,true);
+
+   if(!SpreadOK(symbol))
+      return;
+
+   // إغلاق القديم
+   CloseAll();
+
+   // فتح الجديد
+   OpenTrade(symbol,action);
+
+   last_signal = signal;
+   last_symbol = symbol;
+   last_action = action;
+}
+//+------------------------------------------------------------------+

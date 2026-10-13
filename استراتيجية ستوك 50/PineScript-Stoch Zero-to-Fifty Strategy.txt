@@ -1,0 +1,86 @@
+// ============================================================================
+// «” —« ÌÃÌ… Stochastic Oscillator | Stoch Zero-to-Fifty Strategy („ÕœÀ… »œÊ‰ SL Ê„⁄ Õ„«Ì… «·—’Ìœ)
+// ‘—«¡ ⁄‰œ Ê’Ê· «·„ƒ‘— ≈·Ï 10% | Ã‰Ì √—»«Õ ⁄‰œ Ê’Ê·Â ≈·Ï 50% | Õ„«Ì… «·—’Ìœ 70%
+// ============================================================================
+//@version=5
+strategy("«” —« ÌÃÌ… Stochastic | Stoch Zero-to-Fifty Strategy",
+     shorttitle = "Stoch 0-50 Strategy",
+     overlay = false,
+     initial_capital = 10000,
+     default_qty_type = strategy.percent_of_equity,
+     default_qty_value = 10,
+     commission_type = strategy.commission.percent,
+     commission_value = 0.05,
+     slippage = 2)
+
+// ============================== «·≈⁄œ«œ«  =================================
+grp1 = "≈⁄œ«œ«  „ƒ‘— Stochastic"
+kLen   = input.int(14, "› —… %K (Length)", minval = 1, group = grp1)
+kSmooth= input.int(3,  " ‰⁄Ì„ %K (Smoothing)", minval = 1, group = grp1)
+dSmooth= input.int(3,  "› —… %D", minval = 1, group = grp1)
+
+grp2 = "‘—Êÿ «·œŒÊ· Ê«·Œ—ÊÃ"
+buyLevel = input.float(10, "«·œŒÊ·: ‘—«¡ ⁄‰œ„« %K Ì’· ≈·Ï Â–« „” ÊÏ √Ê √ﬁ·", minval = 0, maxval = 50, group = grp2)
+tpLevel  = input.float(50, "Ã‰Ì «·√—»«Õ: ≈€·«ﬁ ⁄‰œ„« %K Ì’· ≈·Ï Â–« «·„” ÊÏ", minval = 0, maxval = 100, group = grp2)
+
+grp3 = "≈œ«—… «·„Œ«ÿ— ÊÕ„«Ì… «·—’Ìœ"
+equityProtectionPercent = input.float(70.0, "Õ„«Ì… «·—’Ìœ % (≈€·«ﬁ «·ﬂ· ≈–«  „ ›ﬁœ«‰ 30%)", minval = 10, maxval = 100, group = grp3)
+
+grpEma = "›· — «·« Ã«Â (EMA200)"
+useEmaFilter = input.bool(true, " ›⁄Ì· ›· — EMA200 (‘—«¡ ›ﬁÿ ≈–« ﬂ«‰ «·”⁄— ›Êﬁ EMA200)", group = grpEma)
+emaLen       = input.int(200, "› —… EMA", minval = 1, group = grpEma)
+
+grp4 = "› —… «·«Œ »«— (Backtest Range)"
+startDate = input.time(timestamp("2022-01-01"), " «—ÌŒ «·»œ«Ì…", group = grp4)
+endDate   = input.time(timestamp("2099-12-31"), " «—ÌŒ «·‰Â«Ì…", group = grp4)
+inDateRange = time >= startDate and time <= endDate
+
+// ============================== «·Õ”«»«  ===================================
+rawK = ta.stoch(close, high, low, kLen)
+k = ta.sma(rawK, kSmooth)
+d = ta.sma(k, dSmooth)
+emaValue = ta.ema(close, emaLen)
+
+// Õ”«» «·Õœ «·√œ‰Ï «·„”„ÊÕ »Â ·—√” «·„«· ·Õ„«Ì… «·‹ 70%
+minEquityAllowed = strategy.initial_capital * (equityProtectionPercent / 100)
+equityProtectionSignal = strategy.equity <= minEquityAllowed
+
+// ‘—ÿ «·« Ã«Â: «·”⁄— ›Êﬁ EMA200
+bullishTrend = not useEmaFilter or close > emaValue
+
+// ‘—ÿ «·œŒÊ·: %K Ê’· √Ê ‰“·  Õ  „” ÊÏ 10% + «·« Ã«Â ’«⁄œ Ê»‘—ÿ ·„ ‰ Ã«Ê“ Õ„«Ì… «·Õ”«»
+buySignal = k <= buyLevel and bullishTrend and inDateRange and strategy.position_size == 0 and not equityProtectionSignal
+
+// ‘—ÿ Ã‰Ì «·√—»«Õ: %K Ê’· ≈·Ï „” ÊÏ «·Œ—ÊÃ (50) Ê«·’›ﬁ… „› ÊÕ…
+takeProfitSignal = k >= tpLevel and strategy.position_size > 0
+
+// ==============================  ‰›Ì– «·’›ﬁ«  Ê«· ‰»ÌÂ«  ================================
+
+// 1. «·œŒÊ· ›Ì «·’›ﬁ… ⁄‰œ ≈‘«—… «·‘—«¡
+if buySignal
+    strategy.entry("Long", strategy.long)
+    alert('{"symbol": "' + syminfo.ticker + 'm", "action": "BUY"}', alert.freq_once_per_bar_close)
+
+// 2. «·Œ—ÊÃ «·⁄«œÌ ⁄‰œ  Õﬁﬁ Âœ› «·” Êﬂ«” Ìﬂ (50)
+if takeProfitSignal
+    strategy.close("Long", comment = "TP - Stoch 50")
+    // ≈—”«· ≈‘«—… »Ì⁄/≈€·«ﬁ ≈·Ï MT5 · ”ÊÌ… «·’›ﬁ… (≈–« ﬂ«‰ «·‹ EA Ìœ⁄„ «·ÂÌœÃ √Ê «·≈€·«ﬁ «·⁄ﬂ”Ì)
+    alert('{"symbol": "' + syminfo.ticker + 'm", "action": "SELL"}', alert.freq_once_per_bar_close)
+
+// 3. «·Œ—ÊÃ «·«÷ÿ—«—Ì (Õ„«Ì… «·‹ 70% „‰ «·—’Ìœ)
+if equityProtectionSignal and strategy.position_size > 0
+    strategy.close_all(comment = "Emergency Capital Protection 70%")
+    alert('{"symbol": "' + syminfo.ticker + 'm", "action": "SELL"}', alert.freq_once_per_bar_close)
+
+// ============================== «·—”„ «·»Ì«‰Ì =====================
+plot(useEmaFilter ? emaValue : na, "EMA200", color = color.new(color.purple, 0), linewidth = 2, force_overlay = true)
+
+plot(k, "%K", color = color.new(color.blue, 0), linewidth = 2)
+plot(d, "%D", color = color.new(color.orange, 0), linewidth = 1)
+
+hline(buyLevel, "„” ÊÏ «·‘—«¡ (10%)", color = color.new(color.green, 0), linestyle = hline.style_dashed)
+hline(tpLevel,  "„” ÊÏ Ã‰Ì «·√—»«Õ (50%)", color = color.new(color.red, 0), linestyle = hline.style_dashed)
+
+bgcolor(buySignal ? color.new(color.green, 85) : na)
+bgcolor(takeProfitSignal ? color.new(color.red, 85) : na)
+bgcolor(equityProtectionSignal ? color.new(color.maroon, 80) : na)

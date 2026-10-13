@@ -1,0 +1,229 @@
+//+------------------------------------------------------------------+
+#property strict
+#include <Trade/Trade.mqh>
+
+CTrade trade;
+
+string last_signal = "";
+
+// ?? ≈⁄œ«œ« 
+double StartBalance = 0;
+bool StopTrading = false;
+
+// ?? «··Ê 
+double LotSize = 0.50;
+
+// ?? Õ„«Ì… «·—’Ìœ (%70)
+double MinEquityPercent = 0.70;
+
+// ?? Õ„«Ì… «·„«—Ã‰
+double MinFreeMargin = 100;
+
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   StartBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+   Print("?? Start Balance = ", StartBalance);
+   return(INIT_SUCCEEDED);
+}
+//+------------------------------------------------------------------+
+
+// ?? «· Õﬁﬁ „‰ ÊÃÊœ ’›ﬁ… „› ÊÕ…
+bool HasOpenPosition()
+{
+   for(int i=0; i<PositionsTotal(); i++)
+   {
+      if(PositionGetSymbol(i) == _Symbol)
+         return true;
+   }
+   return false;
+}
+//+------------------------------------------------------------------+
+
+// ?? ≈€·«ﬁ ﬂ· «·’›ﬁ« 
+void CloseAllPositions()
+{
+   for(int i = PositionsTotal()-1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(PositionSelectByTicket(ticket))
+         trade.PositionClose(ticket);
+   }
+}
+//+------------------------------------------------------------------+
+
+// ?? Õ„«Ì… «·Õ”«»
+void CheckRisk()
+{
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double percent = equity / StartBalance;
+
+   Print("?? Equity % = ", percent * 100);
+
+   // ?? Õ„«Ì… «·—’Ìœ
+   if(percent <= MinEquityPercent && !StopTrading)
+   {
+      Print("?? ACCOUNT PROTECTED - STOPPED");
+      CloseAllPositions();
+      StopTrading = true;
+   }
+
+   // ?? Õ„«Ì… «·„«—Ã‰
+   double free_margin = AccountInfoDouble(ACCOUNT_FREEMARGIN);
+
+   if(free_margin < MinFreeMargin && !StopTrading)
+   {
+      Print("?? LOW MARGIN - FORCE CLOSE");
+      CloseAllPositions();
+      StopTrading = true;
+   }
+}
+//+------------------------------------------------------------------+
+
+void OnTick()
+{
+   if(StopTrading)
+      return;
+
+   CheckRisk();
+
+   if(StopTrading)
+      return;
+
+   string signal = ReadSignal();
+
+   if(signal == "")
+      return;
+
+   // ?? „‰⁄ «· ﬂ—«—
+   if(signal == last_signal)
+      return;
+
+   Print("?? New Signal: ", signal);
+
+   string parts[];
+   int count = StringSplit(signal, ',', parts);
+
+   if(count != 2)
+   {
+      Print("? Invalid format");
+      return;
+   }
+
+   string symbol = parts[0];
+   string action = parts[1];
+
+   StringToUpper(symbol);
+   StringToUpper(action);
+
+   if(StringFind(_Symbol, symbol) != -1)
+   {
+      Print("? Matched Symbol: ", _Symbol);
+
+      bool result = false;
+
+      if(action == "BUY")
+      {
+         CloseSell();
+         result = OpenBuy();
+      }
+      else if(action == "SELL")
+      {
+         CloseBuy();
+         result = OpenSell();
+      }
+
+      // ?? „Â„ Ãœ« ·„‰⁄ «· ﬂ—«—
+      last_signal = signal;
+
+      if(result)
+         Print("? TRADE SUCCESS");
+      else
+         Print("? TRADE FAILED");
+   }
+}
+//+------------------------------------------------------------------+
+
+string ReadSignal()
+{
+   int handle = FileOpen("Signal.txt", FILE_READ | FILE_TXT | FILE_ANSI);
+
+   if(handle == INVALID_HANDLE)
+   {
+      Print("? FILE NOT FOUND");
+      return "";
+   }
+
+   string text = FileReadString(handle);
+   FileClose(handle);
+
+   StringTrimLeft(text);
+   StringTrimRight(text);
+
+   Print("?? FILE: ", text);
+
+   return text;
+}
+//+------------------------------------------------------------------+
+
+bool OpenBuy()
+{
+   if(HasOpenPosition())
+   {
+      Print("?? Already have position");
+      return false;
+   }
+
+   Print("?? OPEN BUY");
+
+   if(trade.Buy(LotSize, _Symbol))
+      return true;
+
+   Print("? BUY FAILED: ", trade.ResultRetcodeDescription());
+   return false;
+}
+//+------------------------------------------------------------------+
+
+bool OpenSell()
+{
+   if(HasOpenPosition())
+   {
+      Print("?? Already have position");
+      return false;
+   }
+
+   Print("?? OPEN SELL");
+
+   if(trade.Sell(LotSize, _Symbol))
+      return true;
+
+   Print("? SELL FAILED: ", trade.ResultRetcodeDescription());
+   return false;
+}
+//+------------------------------------------------------------------+
+
+void CloseBuy()
+{
+   if(PositionSelect(_Symbol))
+   {
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+      {
+         Print("? CLOSE BUY");
+         trade.PositionClose(_Symbol);
+      }
+   }
+}
+//+------------------------------------------------------------------+
+
+void CloseSell()
+{
+   if(PositionSelect(_Symbol))
+   {
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+      {
+         Print("? CLOSE SELL");
+         trade.PositionClose(_Symbol);
+      }
+   }
+}
+//+------------------------------------------------------------------+

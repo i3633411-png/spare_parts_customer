@@ -1,0 +1,83 @@
+import imaplib
+import email
+import re
+import time
+
+EMAIL = "u24820922@gmail.com"
+PASSWORD = "xvalpupoospxtfid"
+
+FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+last_signal = ""
+
+def extract_signal(text):
+    text = text.upper()
+
+    if "BUY" in text:
+        return "BTCUSD,BUY"
+    elif "SELL" in text:
+        return "BTCUSD,SELL"
+
+    return None
+
+
+def write_signal(signal):
+    global last_signal
+
+    if signal == last_signal:
+        return  # 🔒 منع التكرار
+
+    last_signal = signal
+
+    with open(FILE_PATH, "w", encoding="utf-8") as f:
+        f.write(signal)
+
+    print("🔥 NEW SIGNAL:", signal)
+
+
+def check_email():
+    try:
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(EMAIL, PASSWORD)
+        mail.select("inbox")
+
+        # ✅ فقط الرسائل غير المقروءة
+        result, data = mail.search(None, '(UNSEEN)')
+
+        mail_ids = data[0].split()
+
+        if not mail_ids:
+            mail.logout()
+            return
+
+        latest_email_id = mail_ids[-1]
+
+        result, data = mail.fetch(latest_email_id, "(RFC822)")
+        raw_email = data[0][1]
+
+        msg = email.message_from_bytes(raw_email)
+
+        text = ""
+
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == "text/plain":
+                    text = part.get_payload(decode=True).decode(errors="ignore")
+        else:
+            text = msg.get_payload(decode=True).decode(errors="ignore")
+
+        signal = extract_signal(text)
+
+        if signal:
+            write_signal(signal)
+
+        mail.logout()
+
+    except Exception as e:
+        print("❌ Error:", e)
+
+
+# تشغيل مستمر
+while True:
+    check_email()
+    time.sleep(5)

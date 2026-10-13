@@ -1,0 +1,103 @@
+//+------------------------------------------------------------------+
+//|                                                AutoTraderEA.mq5  |
+//|                                     BUY-Only / CLOSE on Signal   |
+//+------------------------------------------------------------------+
+#property copyright "Custom Trading Bot"
+#property version   "5.00"
+
+#include <Trade\Trade.mqh>
+CTrade trade;
+
+input double InpLotSize    = 0.03;       // حجم اللوت
+input ulong  InpMagicNumber = 123456;     // رقم Magic
+
+string signalFileName = "Signal.txt";
+
+int OnInit()
+  {
+   trade.SetExpertMagicNumber(InpMagicNumber);
+   Print("🚀 EA Active: Execution for BUY and CLOSE signals only.");
+   return(INIT_SUCCEEDED);
+  }
+
+void OnTick()
+  {
+   if(!FileIsExist(signalFileName))
+      return;
+
+   int fileHandle = FileOpen(signalFileName, FILE_READ|FILE_TXT|FILE_ANSI);
+   if(fileHandle == INVALID_HANDLE)
+      return;
+
+   string fileContent = FileReadString(fileHandle);
+   FileClose(fileHandle);
+
+   fileContent = StringTrimLeft(fileContent);
+   fileContent = StringTrimRight(fileContent);
+
+   if(StringLen(fileContent) == 0)
+      return;
+
+   // 🧹 مسح الملف فوراً
+   ClearSignalFile();
+
+   Print("📩 File Content Detected: ", fileContent);
+
+   string parts[];
+   int count = StringSplit(fileContent, ',', parts);
+
+   if(count == 2)
+     {
+      string symbol = parts[0];
+      string action = parts[1];
+
+      if(symbol == _Symbol)
+        {
+         // 🔴 إشارة CLOSE -> إغلاق صفقة الشراء المفتوحة فقط دون فتح أي شيء
+         if(action == "CLOSE")
+           {
+            Print("🔻 CLOSE signal received -> Closing positions...");
+            CloseAllPositions();
+           }
+         // 🟢 إشارة BUY -> إغلاق أي صفقة سابقة ثم فتح صفقة شراء جديدة
+         else if(action == "BUY")
+           {
+            Print("🟢 BUY signal received -> Closing old positions & opening BUY...");
+            CloseAllPositions();
+            OpenBuy();
+           }
+        }
+     }
+  }
+
+void CloseAllPositions()
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol)
+        {
+         trade.PositionClose(ticket);
+         Print("❌ Position Closed: ", ticket);
+        }
+     }
+  }
+
+void OpenBuy()
+  {
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   if(trade.Buy(InpLotSize, _Symbol, ask, 0, 0, "Webhook Buy"))
+      Print("✅ BUY position opened successfully at: ", ask);
+   else
+      Print("❌ Open BUY failed. Error: ", GetLastError());
+  }
+
+void ClearSignalFile()
+  {
+   int fileHandle = FileOpen(signalFileName, FILE_WRITE|FILE_TXT|FILE_ANSI);
+   if(fileHandle != INVALID_HANDLE)
+     {
+      FileWriteString(fileHandle, "");
+      FileClose(fileHandle);
+     }
+  }

@@ -1,0 +1,102 @@
+#include <Trade/Trade.mqh>
+CTrade trade;
+
+string lastSignal = "";
+
+string ReadSignal()
+{
+   int file = FileOpen("Signal.txt", FILE_READ | FILE_TXT | FILE_ANSI);
+
+   if(file == INVALID_HANDLE)
+   {
+      Print("❌ FILE NOT FOUND");
+      return "";
+   }
+
+   string text = FileReadString(file);
+   FileClose(file);
+
+   StringTrimLeft(text);
+   StringTrimRight(text);
+
+   Print("📥 Raw Signal: [", text, "]");
+
+   if(StringLen(text) < 3)
+      return "";
+
+   return text;
+}
+
+// تحويل الزوج إلى صيغة المنصة (إضافة m)
+string FixSymbol(string sym)
+{
+   if(SymbolSelect(sym, true))
+      return sym;
+
+   string alt = sym + "m";
+
+   if(SymbolSelect(alt, true))
+      return alt;
+
+   return sym; // fallback
+}
+
+void ExecuteTrade(string signal)
+{
+   string parts[];
+   int count = StringSplit(signal, ',', parts);
+
+   if(count != 2)
+   {
+      Print("❌ Invalid signal format");
+      return;
+   }
+
+   string symbol = FixSymbol(parts[0]);
+   string action = parts[1];
+
+   Print("🚀 EXECUTE: ", symbol, " ", action);
+
+   // اغلاق الصفقات الحالية
+   for(int i = PositionsTotal()-1; i >= 0; i--)
+   {
+      if(PositionGetSymbol(i) == symbol)
+      {
+         ulong ticket = PositionGetTicket(i);
+         trade.PositionClose(ticket);
+         Print("❌ Closed position: ", ticket);
+      }
+   }
+
+   // فتح صفقة جديدة
+   if(action == "BUY")
+   {
+      if(trade.Buy(0.1, symbol))
+         Print("✅ BUY opened");
+      else
+         Print("❌ BUY failed");
+   }
+   else if(action == "SELL")
+   {
+      if(trade.Sell(0.1, symbol))
+         Print("✅ SELL opened");
+      else
+         Print("❌ SELL failed");
+   }
+}
+
+void OnTick()
+{
+   string signal = ReadSignal();
+
+   if(signal == "" || signal == "0")
+      return;
+
+   // 🔒 منع التكرار
+   if(signal == lastSignal)
+      return;
+
+   lastSignal = signal;
+
+   ExecuteTrade(signal);
+}

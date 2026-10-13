@@ -1,0 +1,73 @@
+const IS_MOBILE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+const AVAILABLE_DOMAINS = [
+  'expertoption.com',
+  'expertoption.money',
+  'expertoption.finance',
+  'expertoptionasia.com',
+  'expertoption.dev',
+  'expertoption1.dev',
+  'expertoption2.dev',
+  'expertoption3.dev',
+  'expert-option.dev',
+  'eoconfirm.com',
+  'mobilelb.com',
+  'mobilelb2.com',
+  'expertoption-id.com',
+  'expertoption-a.com',
+  'expertoption-b.com',
+  'expertoption-c.com',
+  'eobrokerlite.com',
+  'gitusercontent.com',
+  'ams-content.com',
+  'flurry-cloud.com',
+  'dwo-world.com',
+  'tickz.com',
+  'tickz.dev',
+  'eobroker.com',
+  'eo.broker',
+  'eobroker.dev',
+  'eo-trading.com',
+  'eoinvesting.com',
+];
+
+const BASE_DOMAIN = (() => {
+  const index = AVAILABLE_DOMAINS.findIndex(p => globalThis.location.host.match(p));
+  if (index >= 0) {
+    return AVAILABLE_DOMAINS[index];
+  }
+  return AVAILABLE_DOMAINS[0];
+})();
+
+const PATH = location.pathname.replace(/\/+$/, '');
+
+function safeRedirect(url) {
+  const urlObj = new URL(url);
+  if (urlObj.hostname !== location.hostname || urlObj.pathname !== location.pathname) {
+    location.replace(url);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @param appType {string} - app, m
+ * @returns {string}
+ */
+function getRedirectUrl(appType) {
+  return `https://${appType}.${BASE_DOMAIN}${location.pathname}${location.search}${location.hash}`;
+}
+
+function redirectPwa() {
+  if (IS_MOBILE && location.href.match('://app.')) {
+    const url = getRedirectUrl('m');
+    return safeRedirect(url);
+  }
+
+  if (!IS_MOBILE && location.href.match('://m.')) {
+    const url = getRedirectUrl('app');
+    return safeRedirect(url);
+  }
+}
+
+redirectPwa();

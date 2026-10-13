@@ -1,0 +1,14 @@
+# 🔐 بياناتك (عدّلها)
+EMAIL = "u24820922@gmail.com"
+PASSWORD = "xvalpupoospxtfid"
+
+# 🔴 مسار الملف
+file_path = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+
+
+# 🔐 بياناتك (عدّلها)
+EMAIL = "u24820922@gmail.com"
+PASSWORD = "xvalpupoospxtfid"
+
+FILE_PATH = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"

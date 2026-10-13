@@ -1,0 +1,24 @@
+import time
+
+file_path = r"C:\Users\WIN 11 PRO\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5\Files\Signal.txt"
+
+last_signal = ""
+
+while True:
+    try:
+        # نقرأ الإشارة الحالية من الملف (لو فيه)
+        with open(file_path, "r", encoding="ascii") as f:
+            current = f.read().strip()
+
+        # إذا فيه إشارة جديدة مختلفة
+        if current in ["BUY", "SELL"] and current != last_signal:
+            print("New signal detected:", current)
+            last_signal = current
+
+        else:
+            print("Waiting for new signal...")
+
+    except:
+        print("File not ready...")
+
+    time.sleep(5)

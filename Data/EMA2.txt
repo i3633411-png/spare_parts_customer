@@ -1,0 +1,30 @@
+//@version=5
+strategy("EMA Auto Trader", overlay=true, initial_capital=10000)
+
+fastLength = input.int(20, title="EMA Fast")
+slowLength = input.int(50, title="EMA Slow")
+
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+
+plot(fastEMA, color=color.green, linewidth=2)
+plot(slowEMA, color=color.red, linewidth=2)
+
+buySignal = ta.crossover(fastEMA, slowEMA)
+sellSignal = ta.crossunder(fastEMA, slowEMA)
+
+if buySignal
+    strategy.close("SELL")
+    strategy.entry("BUY", strategy.long)
+    alert("BUY", alert.freq_once_per_bar_close)
+
+if sellSignal
+    strategy.close("BUY")
+    strategy.entry("SELL", strategy.short)
+    alert("SELL", alert.freq_once_per_bar_close)
+
+plotshape(buySignal, style=shape.labelup, 
+     text="BUY", color=color.green)
+
+plotshape(sellSignal, style=shape.labeldown, 
+     text="SELL", color=color.red)

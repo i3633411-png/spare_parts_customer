@@ -1,0 +1,117 @@
+//+------------------------------------------------------------------+
+//|                                                 AutoTraderEA.mq5 |
+//|                                Basic MQL5 Webhook Signal Receiver|
+//+------------------------------------------------------------------+
+#property copyright "AI Trading Bot"
+#property version   "1.70"
+#property strict
+#include <Trade\Trade.mqh>
+CTrade trade;
+
+input double   InpLotSize        = 0.03;
+input double   InpTakeProfitUSD  = 0.0;          // 0 = معطّل، الإغلاق يعتمد على إشارة CLOSE من Pine
+input double   InpStopLossUSD    = 3.0;
+input string   InpSignalFileName = "Signal.txt";
+
+string last_signal = "";
+
+int OnInit() {
+   trade.SetTypeFilling(ORDER_FILLING_IOC);
+   Print("🚀 البوت يعمل. هدف الربح: ", InpTakeProfitUSD, " $ (0=معطل) | وقف الخسارة: ", InpStopLossUSD, " $");
+   return(INIT_SUCCEEDED);
+}
+
+void OnTick() {
+   CheckProfitAndLoss();
+   string current_signal = ReadSignalFile();
+   if(current_signal != "" && current_signal != last_signal) {
+      last_signal = current_signal;
+      ProcessSignal(current_signal);
+   }
+}
+
+// يرجع true إذا كانت هناك صفقة مفتوحة، ويحدد نوعها عبر المرجع
+bool GetPositionInfo(ENUM_POSITION_TYPE &posType) {
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol) {
+         posType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         return(true);
+      }
+   }
+   return(false);
+}
+
+void CheckProfitAndLoss() {
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol) {
+         double current_profit = PositionGetDouble(POSITION_PROFIT);
+
+         if(InpTakeProfitUSD > 0 && current_profit >= InpTakeProfitUSD) {
+            trade.PositionClose(ticket);
+            Print("💰 تم إغلاق الصفقة لجني الربح: ", current_profit, " $");
+         }
+         if(InpStopLossUSD > 0 && current_profit <= -InpStopLossUSD) {
+            trade.PositionClose(ticket);
+            Print("🛑 تم إغلاق الصفقة عند وقف الخسارة: ", current_profit, " $");
+         }
+      }
+   }
+}
+
+string ReadSignalFile() {
+   string result = "";
+   int file_handle = FileOpen(InpSignalFileName, FILE_READ|FILE_SHARE_READ|FILE_TXT|FILE_ANSI);
+   if(file_handle != INVALID_HANDLE) {
+      result = FileReadString(file_handle);
+      FileClose(file_handle);
+   }
+   StringTrimLeft(result);
+   StringTrimRight(result);
+   return(result);
+}
+
+void ProcessSignal(string signal) {
+   Print("📥 إشارة مقروءة: ", signal);
+   ENUM_POSITION_TYPE existingType;
+   bool hasPos = GetPositionInfo(existingType);
+
+   if(StringFind(signal, "BUY") != -1) {
+      if(hasPos) {
+         if(existingType == POSITION_TYPE_BUY) {
+            Print("⚠️ تم تجاهل الشراء - صفقة شراء مفتوحة بالفعل");
+            return;
+         } else {
+            Print("🔄 إغلاق صفقة البيع المعاكسة قبل فتح الشراء");
+            CloseAllPositions();
+         }
+      }
+      double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      if(trade.Buy(InpLotSize, _Symbol, ask, 0, 0, "Webhook Buy")) Print("✅ شراء ناجح");
+   }
+   else if(StringFind(signal, "SELL") != -1) {
+      if(hasPos) {
+         if(existingType == POSITION_TYPE_SELL) {
+            Print("⚠️ تم تجاهل البيع - صفقة بيع مفتوحة بالفعل");
+            return;
+         } else {
+            Print("🔄 إغلاق صفقة الشراء المعاكسة قبل فتح البيع");
+            CloseAllPositions();
+         }
+      }
+      double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      if(trade.Sell(InpLotSize, _Symbol, bid, 0, 0, "Webhook Sell")) Print("✅ بيع ناجح");
+   }
+   else if(StringFind(signal, "CLOSE") != -1) {
+      CloseAllPositions();
+   }
+}
+
+void CloseAllPositions() {
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol) trade.PositionClose(ticket);
+   }
+   Print("🧹 تم إغلاق الصفقات");
+}

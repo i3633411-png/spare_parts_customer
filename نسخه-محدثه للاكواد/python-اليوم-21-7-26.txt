@@ -1,0 +1,95 @@
+#property strict
+
+#include <Trade/Trade.mqh>
+CTrade trade;
+
+string lastSignal = "";
+
+//----------------------------------------
+string ReadSignal()
+{
+   int file = FileOpen("Signal.txt", FILE_READ | FILE_TXT);
+   if(file == INVALID_HANDLE)
+      return "";
+
+   string signal = FileReadString(file);
+   FileClose(file);
+
+   StringTrimLeft(signal);
+   StringTrimRight(signal);
+
+   return signal;
+}
+//----------------------------------------
+void CloseCurrentPosition()
+{
+   if(PositionSelect(_Symbol))
+   {
+      trade.PositionClose(_Symbol);
+
+      // ⏳ انتظر حتى يتم الإغلاق فعليًا
+      for(int i=0; i<10; i++)
+      {
+         Sleep(500);
+         if(!PositionSelect(_Symbol))
+            return;
+      }
+   }
+}
+//----------------------------------------
+void OpenPosition(string signal)
+{
+   if(signal == "BUY")
+      trade.Buy(0.1, _Symbol);
+
+   if(signal == "SELL")
+      trade.Sell(0.1, _Symbol);
+}
+//----------------------------------------
+void OnTick()
+{
+   string signal = ReadSignal();
+
+   if(signal == "")
+      return;
+
+   // نفس الإشارة → تجاهل
+   if(signal == lastSignal)
+      return;
+
+   lastSignal = signal;
+
+   bool hasPosition = PositionSelect(_Symbol);
+
+   //--------------------------------
+   // لا يوجد صفقة
+   //--------------------------------
+   if(!hasPosition)
+   {
+      OpenPosition(signal);
+      return;
+   }
+
+   //--------------------------------
+   // يوجد صفقة
+   //--------------------------------
+   int type = PositionGetInteger(POSITION_TYPE);
+
+   // نفس الاتجاه → لا شيء
+   if(type == POSITION_TYPE_BUY && signal == "BUY")
+      return;
+
+   if(type == POSITION_TYPE_SELL && signal == "SELL")
+      return;
+
+   //--------------------------------
+   // عكس الصفقة
+   //--------------------------------
+   CloseCurrentPosition();
+
+   // ⏳ تأكيد إضافي
+   if(!PositionSelect(_Symbol))
+   {
+      OpenPosition(signal);
+   }
+}
