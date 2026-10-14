@@ -34,8 +34,7 @@ class CustomerHomeScreen extends StatefulWidget {
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTickerProviderStateMixin {
-  //final String serverUrl = 'http://localhost:3000';
-  final String serverUrl = 'https://spare-parts-customer.onrender.com'; // أو الرابط المباشر لسيرفرك
+  final String serverUrl = 'https://spare-parts-customer.onrender.com';
   List<dynamic> orders = [];
   Timer? _timer;
   late TabController _tabController;
@@ -89,8 +88,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
   final TextEditingController partNumberController = TextEditingController();
 
   List<String> imageList = [];
-  List<String> selectedPickup = ['حضوري', 'توصيل'];
-  List<String> selectedPayment = ['كاش', 'دفع إلكتروني', 'تابي', 'تمارا'];
+  final List<String> selectedPickup = ['حضوري', 'توصيل'];
+  final List<String> selectedPayment = ['كاش', 'دفع إلكتروني', 'تابي', 'تمارا'];
 
   @override
   void initState() {
@@ -192,10 +191,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
       selectedCatalogPartKey = null;
     });
     try {
-      String encodedBrand = Uri.encodeComponent(brand);
-      String encodedModel = Uri.encodeComponent(model);
+      String queryPart = partNumberController.text.trim().isNotEmpty 
+          ? partNumberController.text.trim() 
+          : '$brand $model';
 
-      final response = await http.get(Uri.parse('$serverUrl/api/catalog/$encodedBrand/$encodedModel'));
+      final response = await http.get(
+        Uri.parse('$serverUrl/api/proxy-partsouq?partNumber=${Uri.encodeComponent(queryPart)}'),
+      );
+
       if (response.statusCode == 200) {
         final resData = jsonDecode(response.body);
         setState(() {
@@ -203,6 +206,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
         });
       }
     } catch (e) {
+      // Handle error gracefully
     } finally {
       setState(() { isLoadingCatalog = false; });
     }
@@ -411,7 +415,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('1. تحديد المركبة (برقم الهيكل أو يدوياً)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+                        const Text('تحديد المركبة (برقم الهيكل أو يدوياً)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
                         const SizedBox(height: 12),
 
                         Row(
@@ -516,8 +520,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
                                 items: catalogParts.map((p) {
-                                  String itemName = p['name'];
-                                  String partNum = p['partNumber'];
+                                  String itemName = p['name'] ?? '';
+                                  String partNum = p['partNumber'] ?? '';
                                   String itemKey = "$itemName|$partNum";
                                   return DropdownMenuItem<String>(
                                     value: itemKey,

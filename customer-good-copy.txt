@@ -16,7 +16,7 @@ class CustomerApp extends StatelessWidget {
     return MaterialApp(
       title: 'تطبيق العميل',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
+      theme: ThemeData(بمعففثق
         primarySwatch: Colors.indigo,
         fontFamily: 'Arial',
         scaffoldBackgroundColor: const Color(0xFFF5F6FA),
@@ -195,7 +195,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
       String encodedBrand = Uri.encodeComponent(brand);
       String encodedModel = Uri.encodeComponent(model);
 
-      final response = await http.get(Uri.parse('$serverUrl/api/catalog/$encodedBrand/$encodedModel'));
+     
+
+ //final response = await http.get(Uri.parse('$serverUrl/api/catalog/$encodedBrand/$encodedModel'));
+
+final response = await http.get(
+  Uri.parse('https://spare-parts-customer.onrender.com/api/proxy-partsouq?partNumber=$partNumber'),
+);
+
+
       if (response.statusCode == 200) {
         final resData = jsonDecode(response.body);
         setState(() {
