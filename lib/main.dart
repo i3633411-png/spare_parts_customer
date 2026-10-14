@@ -34,7 +34,8 @@ class CustomerHomeScreen extends StatefulWidget {
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTickerProviderStateMixin {
-  final String serverUrl = 'https://my-store-api.onrender.com';
+  //final String serverUrl = 'http://localhost:3000';
+  final String serverUrl = 'https://spare-parts-customer.onrender.com'; // أو الرابط المباشر لسيرفرك
   List<dynamic> orders = [];
   Timer? _timer;
   late TabController _tabController;
@@ -46,8 +47,19 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
   String? selectedCatalogPartKey;
 
   final List<String> carBrands = [
-    'TOYOTA', 'KIA', 'HYUNDAI', 'NISSAN', 'FORD', 'CHEVROLET',
-    'MERCEDES-BENZ', 'BMW', 'LEXUS', 'HONDA', 'MAZDA', 'GMC', 'أخرى'
+    'TOYOTA',
+    'KIA',
+    'HYUNDAI',
+    'NISSAN',
+    'FORD',
+    'CHEVROLET',
+    'MERCEDES-BENZ',
+    'BMW',
+    'LEXUS',
+    'HONDA',
+    'MAZDA',
+    'GMC',
+    'أخرى'
   ];
 
   final Map<String, List<String>> brandModels = {
@@ -112,74 +124,66 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
 
   void openPartSouqSearch() {
     String vin = vinController.text.trim();
+    
     if (vin.contains('import') || vin.contains('package') || vin.length > 20) {
       vin = ''; 
     }
+
     String targetUrl = vin.isNotEmpty 
         ? 'https://partsouq.com/ar/search/all?q=$vin' 
         : 'https://partsouq.com/ar/';
+
     String translatedUrl = 'https://translate.google.com/translate?sl=en&tl=ar&u=${Uri.encodeComponent(targetUrl)}';
+
     html.window.open(translatedUrl, '_blank');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تم فتح الكتالوج! اختر القطعة المطلوبة 🌐'),
+        backgroundColor: Colors.teal,
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
-  Future<void> decodeVin() async {
-    final vin = vinController.text.trim();
-    if (vin.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى إدخال رقم الهيكل أولاً')),
-      );
-      return;
+  String? detectBrandFromVinPrefix(String vin) {
+    String cleanVin = vin.toUpperCase().trim();
+    if (cleanVin.startsWith('1G') || cleanVin.startsWith('2G') || cleanVin.startsWith('3G')) {
+      return 'CHEVROLET';
+    } else if (cleanVin.startsWith('JT') || cleanVin.startsWith('4T') || cleanVin.startsWith('5T')) {
+      return 'TOYOTA';
+    } else if (cleanVin.startsWith('KM') || cleanVin.startsWith('5N')) {
+      return 'HYUNDAI';
+    } else if (cleanVin.startsWith('KN') || cleanVin.startsWith('3K')) {
+      return 'KIA';
+    } else if (cleanVin.startsWith('JN') || cleanVin.startsWith('1N')) {
+      return 'NISSAN';
+    } else if (cleanVin.startsWith('1F') || cleanVin.startsWith('2F')) {
+      return 'FORD';
+    } else if (cleanVin.startsWith('WDD') || cleanVin.startsWith('WDB')) {
+      return 'MERCEDES-BENZ';
+    } else if (cleanVin.startsWith('WBA') || cleanVin.startsWith('WBY')) {
+      return 'BMW';
+    } else if (cleanVin.startsWith('JTH') || cleanVin.startsWith('JTJ')) {
+      return 'LEXUS';
     }
+    return null;
+  }
 
-    setState(() {
-      isDecodingVin = true;
-      decodedDetailsText = null;
-    });
-
-    try {
-      final response = await http.get(Uri.parse('$serverUrl/api/decode-vin/$vin'));
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result['success'] == true) {
-          final data = result['data'];
-          String? fetchedMake = data['make']?.toString().toUpperCase();
-          String? fetchedModel = data['model']?.toString();
-          String? fetchedYear = data['year']?.toString().trim();
-
-          setState(() {
-            if (fetchedMake != null && carBrands.contains(fetchedMake)) {
-              selectedBrand = fetchedMake;
-            }
-            if (selectedBrand != 'غير معروف' && brandModels.containsKey(selectedBrand)) {
-              List<String> availableModels = getAvailableModels();
-              if (fetchedModel != null) {
-                var matchedModel = availableModels.firstWhere(
-                  (m) => m.toLowerCase().contains(fetchedModel.toLowerCase()) || fetchedModel.toLowerCase().contains(m.toLowerCase()),
-                  orElse: () => availableModels.first,
-                );
-                selectedCarModel = matchedModel;
-              }
-            }
-            if (fetchedYear != null && modelYears.contains(fetchedYear)) {
-              selectedYear = fetchedYear;
-            }
-            decodedDetailsText = 'تم استخراج بيانات المركبة بنجاح!';
-          });
-
-          if (selectedBrand != 'غير معروف' && selectedCarModel != 'غير معروف') {
-            fetchCatalogParts(selectedBrand!, selectedCarModel!);
-          }
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر جلب تفاصيل رقم الهيكل، يرجى الاختيار يدوياً')),
-      );
-    } finally {
-      setState(() {
-        isDecodingVin = false;
-      });
+  String? decodeYearFromVin10thChar(String vin) {
+    String cleanVin = vin.toUpperCase().trim();
+    if (cleanVin.length >= 10) {
+      String tenth = cleanVin[9];
+      Map<String, String> vinYearMap = {
+        '1': '2001', '2': '2002', '3': '2003', '4': '2004', '5': '2005',
+        '6': '2006', '7': '2007', '8': '2008', '9': '2009', 'A': '2010',
+        'B': '2011', 'C': '2012', 'D': '2013', 'E': '2014', 'F': '2015',
+        'G': '2016', 'H': '2017', 'J': '2018', 'K': '2019', 'L': '2020',
+        'M': '2021', 'N': '2022', 'P': '2023', 'R': '2024', 'S': '2025', 'T': '2026'
+      };
+      return vinYearMap[tenth];
     }
+    return null;
   }
 
   Future<void> fetchCatalogParts(String brand, String model) async {
@@ -190,6 +194,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
     try {
       String encodedBrand = Uri.encodeComponent(brand);
       String encodedModel = Uri.encodeComponent(model);
+
       final response = await http.get(Uri.parse('$serverUrl/api/catalog/$encodedBrand/$encodedModel'));
       if (response.statusCode == 200) {
         final resData = jsonDecode(response.body);
@@ -221,155 +226,98 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
     } catch (e) {}
   }
 
-  Future<void> respondToOffer(String orderId, String action) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$serverUrl/api/orders/$orderId/respond'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'action': action}),
+  Future<void> decodeVin() async {
+    final vin = vinController.text.trim();
+    if (vin.isEmpty || vin.contains('import')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى إدخال رقم الهيكل أولاً')),
       );
-      if (response.statusCode == 200) {
-        fetchOrders();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(action == 'accept' ? 'تمت الموافقة! يمكنك الآن اختيار طريقة الشراء 🛒' : 'تم رفض العرض'),
-            backgroundColor: action == 'accept' ? Colors.green : Colors.red,
-          ),
-        );
-      }
-    } catch (e) {}
-  }
+      return;
+    }
 
-  // إرسال تأكيد هل تمت العملية بنجاح أم لا للسيرفر
-  Future<void> submitCompletionStatus(String orderId, bool isSuccess) async {
+    setState(() {
+      isDecodingVin = true;
+      decodedDetailsText = null;
+    });
+
+    String? localDetectedBrand = detectBrandFromVinPrefix(vin);
+    String? localDetectedYear = decodeYearFromVin10thChar(vin);
+
     try {
-      final response = await http.post(
-        Uri.parse('$serverUrl/api/orders/$orderId/complete-status'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'success': isSuccess}),
-      );
+      final response = await http.get(Uri.parse('$serverUrl/api/decode-vin/$vin'));
       if (response.statusCode == 200) {
-        fetchOrders();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isSuccess ? 'شكراً لك! تمت العملية بنجاح 🎉' : 'تم تسجيل الملاحظة'),
-            backgroundColor: isSuccess ? Colors.green : Colors.orange,
-          ),
-        );
+        final result = jsonDecode(response.body);
+        if (result['success'] == true) {
+          final data = result['data'];
+          String? fetchedMake = data['make']?.toString().toUpperCase();
+          String? fetchedModel = data['model']?.toString();
+          String? fetchedYear = data['year']?.toString().trim();
+
+          setState(() {
+            if (fetchedMake != null) {
+              var matchedBrand = carBrands.firstWhere(
+                (b) => b.toUpperCase() == fetchedMake || fetchedMake.contains(b.toUpperCase()),
+                orElse: () => localDetectedBrand ?? 'غير معروف',
+              );
+              selectedBrand = matchedBrand;
+            } else {
+              selectedBrand = localDetectedBrand ?? 'غير معروف';
+            }
+
+            if (selectedBrand != 'غير معروف' && brandModels.containsKey(selectedBrand)) {
+              List<String> availableModels = getAvailableModels();
+              if (fetchedModel != null) {
+                var matchedModel = availableModels.firstWhere(
+                  (m) => m.toLowerCase().contains(fetchedModel.toLowerCase()) || fetchedModel.toLowerCase().contains(m.toLowerCase()),
+                  orElse: () => availableModels.first,
+                );
+                selectedCarModel = matchedModel;
+              } else {
+                selectedCarModel = availableModels.first;
+              }
+            } else {
+              selectedCarModel = 'غير معروف';
+            }
+
+            String? finalYear = (fetchedYear != null && modelYears.contains(fetchedYear))
+                ? fetchedYear
+                : localDetectedYear;
+
+            selectedYear = (finalYear != null && modelYears.contains(finalYear)) ? finalYear : 'غير معروف';
+
+            decodedDetailsText = 'تم الجلب: $selectedBrand $selectedCarModel $selectedYear';
+          });
+
+          if (selectedBrand != 'غير معروف' && selectedCarModel != 'غير معروف') {
+            fetchCatalogParts(selectedBrand!, selectedCarModel!);
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم استخراج بيانات المركبة بنجاح!'), backgroundColor: Colors.green),
+          );
+          return;
+        }
       }
-    } catch (e) {}
-  }
-
-  // نافذة السؤال بعد فتح الرابط: هل تمت العملية بنجاح؟ (نعم / لا)
-  void showSuccessConfirmationDialog(String orderId) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          title: const Text('تأكيد حالة الطلب', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
-          content: const Text(
-            'هل تمت العملية بنجاح مع التاجر؟',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16),
-          ),
-          actionsAlignment: MainAxisAlignment.spaceEvenly,
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                submitCompletionStatus(orderId, true);
-              },
-              child: const Text('نعم ✅', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                submitCompletionStatus(orderId, false);
-              },
-              child: const Text('لا ❌', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // عرض نافذة خيارات الشراء
-  void showPurchaseOptionsDialog(Map<String, dynamic> order) {
-    String orderId = order['id'].toString();
-    String phone = order['merchantPhone'] ?? '966500000000';
-    String partName = order['partName'] ?? '';
-    String carInfo = '${order['carBrand']} ${order['carName']} (${order['carModel']})';
-    String message = 'السلام عليكم، أود إتمام شراء القطعة: $partName للسيارة: $carInfo بسعر: ${order['price']} ريال.';
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('طريقة الشراء والتواصل', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('اختر الوسيلة المناسبة لك لإتمام الطلب:', style: TextStyle(fontSize: 14)),
-              const SizedBox(height: 18),
-              
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A237E),
-                  minimumSize: const Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  html.window.open('https://yallabook.com', '_blank');
-                  // إظهار نافذة التأكيد فور الانتقال للمتجر
-                  showSuccessConfirmationDialog(orderId);
-                },
-                icon: const Icon(Icons.language, color: Colors.white),
-                label: const Text('رابط متجرنا 🌐', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-              ),
-
-              const SizedBox(height: 10),
-
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF25D366),
-                  minimumSize: const Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  String whatsappUrl = 'https://wa.me/$phone?text=${Uri.encodeComponent(message)}';
-                  html.window.open(whatsappUrl, '_blank');
-                  // إظهار نافذة التأكيد فور فتح الواتساب
-                  showSuccessConfirmationDialog(orderId);
-                },
-                icon: const Icon(Icons.chat, color: Colors.white),
-                label: const Text('التواصل عبر واتساب 💬', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
-            )
-          ],
-        );
-      },
-    );
+      
+      setState(() {
+        selectedBrand = localDetectedBrand ?? 'غير معروف';
+        selectedCarModel = 'غير معروف';
+        selectedYear = localDetectedYear ?? 'غير معروف';
+        decodedDetailsText = 'تعذر جلب تفاصيل دقيقة، يرجى الاستعانة بالكتالوج المباشر.';
+      });
+      openPartSouqSearch();
+    } catch (e) {
+      setState(() {
+        selectedBrand = localDetectedBrand ?? 'غير معروف';
+        selectedCarModel = 'غير معروف';
+        selectedYear = localDetectedYear ?? 'غير معروف';
+      });
+      openPartSouqSearch();
+    } finally {
+      setState(() {
+        isDecodingVin = false;
+      });
+    }
   }
 
   Future<void> sendOrder() async {
@@ -423,7 +371,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
     }
 
     List<String> yearDropdownItems = ['غير معروف', ...modelYears];
+    if (!yearDropdownItems.contains(selectedYear)) {
+      selectedYear = 'غير معروف';
+    }
+
     List<String> brandDropdownItems = ['غير معروف', ...carBrands];
+    if (!brandDropdownItems.contains(selectedBrand)) {
+      selectedBrand = 'غير معروف';
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -458,6 +413,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                       children: [
                         const Text('1. تحديد المركبة (برقم الهيكل أو يدوياً)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
                         const SizedBox(height: 12),
+
                         Row(
                           children: [
                             Expanded(
@@ -474,12 +430,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                             const SizedBox(width: 6),
                             IconButton(
                               onPressed: isDecodingVin ? null : decodeVin,
-                              icon: isDecodingVin 
-                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
-                                  : const Icon(Icons.search, color: Color(0xFF1A237E), size: 28),
+                              icon: isDecodingVin ? const CircularProgressIndicator() : const Icon(Icons.search, color: Color(0xFF1A237E), size: 26),
                               tooltip: 'فك رقم الهيكل',
                             ),
-                            const SizedBox(width: 4),
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.teal,
@@ -492,11 +445,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                             ),
                           ],
                         ),
+
                         if (decodedDetailsText != null) ...[
                           const SizedBox(height: 8),
                           Text(decodedDetailsText!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
                         ],
+
                         const SizedBox(height: 14),
+
                         Row(
                           children: [
                             Expanded(
@@ -541,12 +497,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                             ),
                           ],
                         ),
+
                         const Divider(height: 30),
+
                         Text(
                           '2. اختيار أو كتابة القطعة الخاصة بـ ($selectedBrand $selectedCarModel)',
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E)),
                         ),
                         const SizedBox(height: 10),
+
                         isLoadingCatalog
                             ? const Center(child: CircularProgressIndicator())
                             : DropdownButtonFormField<String>(
@@ -586,7 +545,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                                   }
                                 },
                               ),
+
                         const SizedBox(height: 14),
+
                         Row(
                           children: [
                             Expanded(
@@ -631,21 +592,16 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
               ],
             ),
           ),
+
           ListView.builder(
             itemCount: orders.length,
             itemBuilder: (context, index) {
               final order = orders[index];
-              String orderId = order['id'].toString();
-              String rawStatus = order['status'] ?? 'بانتظار العروض';
+              String status = order['status'] ?? 'بانتظار العروض';
               dynamic price = order['price'];
               String? partNum = order['partNumber'];
               String? qualityType = order['qualityType'];
               String? qualityGrade = order['qualityGrade'];
-
-              String displayStatus = rawStatus;
-              if (rawStatus == 'تم إرسال العرض') {
-                displayStatus = 'لديك عرض جديد 🔔';
-              }
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -669,7 +625,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                         Row(
                           children: [
                             const Text('رقم القطعة: ', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                            Text(partNum, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                            Text(
+                              partNum,
+                              textDirection: TextDirection.ltr,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo),
+                            ),
                           ],
                         ),
                       ],
@@ -689,47 +649,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> with SingleTick
                         ),
                       ],
                       const SizedBox(height: 8),
-                      Text('الحالة: $displayStatus', style: TextStyle(fontWeight: FontWeight.bold, color: displayStatus.contains('نجاح') || displayStatus.contains('جديد') || displayStatus.contains('قبول') ? Colors.green : Colors.indigo)),
-                      
-                      if (price != null && rawStatus == 'تم إرسال العرض') ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                onPressed: () => respondToOffer(orderId, 'accept'),
-                                child: const Text('موافق على العرض ✅', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red.shade700,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                onPressed: () => respondToOffer(orderId, 'reject'),
-                                child: const Text('رفض العرض ❌', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ] else if (rawStatus.contains('تم قبول العرض')) ...[
-                        const SizedBox(height: 10),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          onPressed: () => showPurchaseOptionsDialog(order),
-                          icon: const Icon(Icons.store, color: Colors.white),
-                          label: const Text('التواصل مع التاجر وإتمام الشراء 🛒', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+                      Text('الحالة: $status', style: TextStyle(fontWeight: FontWeight.bold, color: status.contains('تم') ? Colors.green : Colors.indigo)),
                     ],
                   ),
                 ),
